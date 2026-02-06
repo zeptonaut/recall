@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,21 @@ export function StudyCard({ prompt, correctResponse, onResult }: StudyCardProps)
       onResult(true, difficulty);
     }
   }
+
+  // Keyboard shortcuts: 1-4 for difficulty when correct, Enter for next when incorrect
+  useEffect(() => {
+    if (phase !== 'review' || submitted) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (isCorrect && e.key >= '1' && e.key <= '4') {
+        handleDifficulty(Number(e.key));
+      }
+      if (!isCorrect && e.key === 'Enter') {
+        handleNext();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 
   function handleNext() {
     if (!submitted) {
