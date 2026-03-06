@@ -1,73 +1,81 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Progress } from '@/components/ui/progress';
+import { useMemo, useState, useTransition } from 'react';
+import { ArrowLeft } from 'lucide-react';
+import { getDrillQueue, submitReview } from '@/app/actions/study';
 import { StudyCard } from '@/components/study-card';
 import { StudySummary } from '@/components/study-summary';
-import { recordAttempt } from '@/app/actions/study';
-import { ArrowLeft } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import type { DrillMode, StudyQueueItem } from '@/lib/fsrs';
 
-interface CardData {
-  id: string;
-  prompt: string;
-  response: string;
-}
-
-interface AttemptResult {
-  isCorrect: boolean;
-  difficulty: number | null;
+interface DrillModeOption {
+  id: DrillMode;
+  label: string;
+  description: string;
 }
 
 interface StudySessionProps {
   setId: string;
   setTitle: string;
-  cards: CardData[];
+  initialCards: StudyQueueItem[];
+  drillModes: DrillModeOption[];
 }
 
-/** Shuffles an array using Fisher-Yates */
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
+interface StudyResult {
+  rating: 1 | 2 | 3 | 4;
 }
 
-/** Client-side study session managing card progression, recording, and summary */
-export function StudySession({ setId, setTitle, cards }: StudySessionProps) {
-  const [shuffledCards, setShuffledCards] = useState(() => shuffle(cards));
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [results, setResults] = useState<AttemptResult[]>([]);
-  const [phase, setPhase] = useState<'studying' | 'summary'>('studying');
+/** Queue-driven study session for scheduled reviews and non-rescheduling drills. */
+export function StudySession({ setId, setTitle, initialCards, drillModes }: StudySessionProps) {
+  const [mode, setMode] = useState<'scheduled' | 'drill'>('scheduled');
+  const [queue, setQueue] = useState<StudyQueueItem[]>(initialCards);
+  const [results, setResults] = useState<StudyResult[]>([]);
+  const [isLoadingDrill, startLoadingDrill] = useTransition();
 
-  const currentCard = shuffledCards[currentIndex];
-  const progress = Math.round((currentIndex / shuffledCards.length) * 100);
+  const currentCard = queue[0] ?? null;
+  const totalForProgress = Math.max(initialCards.length, results.length + queue.length, 1);
+  const progress = useMemo(() => {
+    const completed = results.length;
+    return Math.round((completed / totalForProgress) * 100);
+  }, [results.length, totalForProgress]);
 
-  const handleResult = useCallback(
-    async (isCorrect: boolean, difficulty: number | null) => {
-      // Record to DB
-      await recordAttempt(currentCard.id, isCorrect, difficulty);
+  async function handleRate(rating: 1 | 2 | 3 | 4, elapsedMs: number) {
+    if (!currentCard) return;
 
-      const newResults = [...results, { isCorrect, difficulty }];
-      setResults(newResults);
+    await submitReview({
+      cardId: currentCard.id,
+      rating,
+      reviewType: mode,
+      elapsedMs,
+    });
 
-      if (currentIndex + 1 >= shuffledCards.length) {
-        setPhase('summary');
-      } else {
-        setCurrentIndex((i) => i + 1);
+    setResults((existing) => [...existing, { rating }]);
+    setQueue((existing) => {
+      const [, ...remaining] = existing;
+      if (mode === 'drill' && rating === 1) {
+        return [...remaining, currentCard];
       }
-    },
-    [currentCard, currentIndex, results, shuffledCards.length]
-  );
-
-  function handleStudyAgain() {
-    setShuffledCards(shuffle(cards));
-    setCurrentIndex(0);
-    setResults([]);
-    setPhase('studying');
+      return remaining;
+    });
   }
+
+  function startDrill(drillMode: DrillMode) {
+    startLoadingDrill(async () => {
+      const drillCards = await getDrillQueue(setId, 10, drillMode);
+      setMode('drill');
+      setQueue(drillCards);
+      setResults([]);
+    });
+  }
+
+  function resetToDrillChooser() {
+    setMode('scheduled');
+    setQueue([]);
+    setResults([]);
+  }
+
+  const showSummary = !currentCard;
 
   return (
     <div className="space-y-6">
@@ -81,31 +89,27 @@ export function StudySession({ setId, setTitle, cards }: StudySessionProps) {
         </Link>
       </div>
 
-      {phase === 'studying' && (
+      {!showSummary ? (
         <>
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Card {currentIndex + 1} of {shuffledCards.length}</span>
+              <span className="capitalize">{mode} study</span>
               <span>{progress}%</span>
             </div>
             <Progress value={progress} />
           </div>
 
-          <StudyCard
-            key={currentCard.id}
-            prompt={currentCard.prompt}
-            correctResponse={currentCard.response}
-            onResult={handleResult}
-          />
+          <StudyCard key={`${mode}:${currentCard.id}`} card={currentCard} reviewType={mode} onRate={handleRate} />
         </>
-      )}
-
-      {phase === 'summary' && (
+      ) : (
         <StudySummary
           setId={setId}
-          totalCards={shuffledCards.length}
+          mode={mode}
+          totalReviewed={results.length}
           results={results}
-          onStudyAgain={handleStudyAgain}
+          drillModes={mode === 'scheduled' && !isLoadingDrill ? drillModes : []}
+          onStartDrill={mode === 'scheduled' ? startDrill : undefined}
+          onPracticeAgain={mode === 'drill' ? resetToDrillChooser : undefined}
         />
       )}
     </div>

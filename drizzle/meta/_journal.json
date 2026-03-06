@@ -8,6 +8,13 @@
       "when": 1770349514205,
       "tag": "0000_magical_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772830581480,
+      "tag": "0001_purple_zuras",
+      "breakpoints": true
     }
   ]
 }
