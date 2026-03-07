@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import {
   Dialog,
   DialogContent,
@@ -76,9 +77,13 @@ export function CreateSetDialog() {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-          <Button type="submit" disabled={loading || !title.trim()} className="w-full">
-            {loading ? 'Creating...' : 'Create Set'}
-          </Button>
+          <div className="flex justify-end pt-2">
+            <ShortcutTooltip label="Submit this set" shortcuts="Enter">
+              <Button type="submit" disabled={loading || !title.trim()} className="min-w-28 rounded-lg px-5">
+                {loading ? 'Creating...' : 'Create Set'}
+              </Button>
+            </ShortcutTooltip>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

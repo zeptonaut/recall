@@ -104,9 +104,17 @@ export function CreateCardDialog({ setId, open, onOpenChange }: CreateCardDialog
               required
             />
           </div>
-          <Button type="submit" disabled={loading || !prompt.trim() || !response.trim()} className="w-full">
-            {loading ? 'Creating...' : 'Create Card'}
-          </Button>
+          <div className="flex justify-end pt-2">
+            <ShortcutTooltip label="Submit this card" shortcuts={['Cmd+Enter', 'Ctrl+Enter']}>
+              <Button
+                type="submit"
+                disabled={loading || !prompt.trim() || !response.trim()}
+                className="min-w-32 rounded-lg px-5"
+              >
+                {loading ? 'Creating...' : 'Create Card'}
+              </Button>
+            </ShortcutTooltip>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
