@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Recall
 
-## Getting Started
+Recall is a Next.js spaced-repetition app backed by Postgres via Drizzle.
 
-First, run the development server:
+## Setup
+
+### 1. Install dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+brew bundle
+yarn install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Brewfile installs `postgresql@17`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Start Postgres
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+brew services start postgresql@17
+```
 
-## Learn More
+### 3. Create separate development and test databases
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+createdb recall_development
+createdb recall_test
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Configure environment files
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Development uses `.env.local`. Test uses `.env.test.local`.
 
-## Deploy on Vercel
+```bash
+cat <<'EOF' > .env.local
+DATABASE_URL=postgres://localhost:5432/recall_development
+EOF
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+cat <<'EOF' > .env.test.local
+DATABASE_URL=postgres://localhost:5432/recall_test
+EOF
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This follows the same shape as Rails:
+
+- `development` and `test` have different databases.
+- app code always reads `DATABASE_URL`.
+- the environment decides which database that means.
+- `.env.local` is ignored for `test`, so tests cannot silently reuse the development database.
+
+### 5. Run migrations
+
+```bash
+yarn db:migrate
+```
+
+`yarn db:migrate` now runs development and test migrations, Rails-style.
+If you only want the development database, use `yarn db:migrate:dev`.
+
+To fully rebuild both local databases from scratch and rerun all migrations:
+
+```bash
+yarn db:reset
+```
+
+`yarn db:reset` resets development and test, then runs migrations for both.
+It refuses to run against non-local hosts.
+
+### 6. Seed development data
+
+```bash
+yarn db:seed
+```
+
+## Running the app
+
+```bash
+yarn dev
+```
+
+The app runs on [http://localhost:4321](http://localhost:4321).
+
+## Tests
+
+```bash
+yarn test
+```
+
+The test runner now forces `NODE_ENV=test`, and DB scripts have explicit test variants:
+
+- `yarn db:migrate`
+- `yarn db:migrate:test`
+- `yarn db:migrate:dev`
+- `yarn db:reset`
+- `yarn db:reset:test`
+- `yarn db:reset:dev`
+- `yarn db:studio:test`
+- `yarn db:seed:test`
+
+## Environment loading
+
+Non-Next scripts in this repo now use the same env file precedence as Next:
+
+- `.env`
+- `.env.development` or `.env.test`
+- `.env.local` except in `test`
+- `.env.development.local` or `.env.test.local`
+
+That gives you the Rails-style behavior you asked for: local development can point at one database, tests at another, and production can use its own deploy-time `DATABASE_URL`.
