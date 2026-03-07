@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, BookOpen, Check, Pencil, Trash2, X } from 'lucide-react';
 import { deleteSet, updateSet } from '@/app/actions/sets';
 import { CardListItem } from '@/components/card-list-item';
 import { CreateCardDialog } from '@/components/create-card-dialog';
+import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,7 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
   const [title, setTitle] = useState(set.title);
   const [description, setDescription] = useState(set.description ?? '');
   const [loading, setLoading] = useState(false);
+  const [createCardOpen, setCreateCardOpen] = useState(false);
   const router = useRouter();
 
   async function handleSave() {
@@ -76,6 +78,38 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (editing || createCardOpen) return;
+
+      if (event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        setCreateCardOpen(true);
+        return;
+      }
+
+      if (event.key.toLowerCase() === 's' && set.cards.length > 0) {
+        event.preventDefault();
+        router.push(`/sets/${set.id}/study`);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [createCardOpen, editing, router, set.cards.length, set.id]);
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-6">
@@ -116,7 +150,9 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold">{set.title}</h1>
-            {set.description ? <p className="text-muted-foreground">{set.description}</p> : null}
+            {set.description ? (
+              <p className="whitespace-pre-wrap break-words text-muted-foreground">{set.description}</p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <Badge variant={set.stats.dueNowCount > 0 ? 'default' : 'outline'}>
                 {set.stats.dueNowCount} due
@@ -144,14 +180,16 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
       )}
 
       <div className="flex items-center gap-3">
-        <CreateCardDialog setId={set.id} />
+        <CreateCardDialog setId={set.id} open={createCardOpen} onOpenChange={setCreateCardOpen} />
         {set.cards.length > 0 ? (
-          <Button asChild>
-            <Link href={`/sets/${set.id}/study`}>
-              <BookOpen className="mr-2 h-4 w-4" />
-              Study This Set
-            </Link>
-          </Button>
+          <ShortcutTooltip label="Study this set" shortcuts="S">
+            <Button asChild>
+              <Link href={`/sets/${set.id}/study`}>
+                <BookOpen className="h-4 w-4" />
+                Study
+              </Link>
+            </Button>
+          </ShortcutTooltip>
         ) : null}
       </div>
 

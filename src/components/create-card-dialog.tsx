@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { createCard } from '@/app/actions/cards';
@@ -19,11 +19,12 @@ import { Plus } from 'lucide-react';
 
 interface CreateCardDialogProps {
   setId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 /** Dialog form for adding a new card to a set */
-export function CreateCardDialog({ setId }: CreateCardDialogProps) {
-  const [open, setOpen] = useState(false);
+export function CreateCardDialog({ setId, open, onOpenChange }: CreateCardDialogProps) {
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,30 +36,48 @@ export function CreateCardDialog({ setId }: CreateCardDialogProps) {
 
     setLoading(true);
     try {
-      await createCard(setId, prompt.trim(), response.trim());
-      toast.success('Card added');
+      await createCard(setId, prompt, response);
+      toast.success('Card created');
       setPrompt('');
       setResponse('');
-      setOpen(false);
+      onOpenChange(false);
       router.refresh();
     } catch {
-      toast.error('Failed to add card');
+      toast.error('Failed to create card');
     } finally {
       setLoading(false);
     }
   }
 
+  function handleTextareaKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+    if (!event.metaKey && !event.ctrlKey) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <Plus className="h-4 w-4" />
-          Add Card
-        </Button>
-      </DialogTrigger>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          setPrompt('');
+          setResponse('');
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
+      <ShortcutTooltip label="Create a new card" shortcuts="C">
+        <DialogTrigger asChild>
+          <Button variant="outline">
+            <Plus className="h-4 w-4" />
+            Create Card
+          </Button>
+        </DialogTrigger>
+      </ShortcutTooltip>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add New Card</DialogTitle>
+          <DialogTitle>Create Card</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -68,21 +87,25 @@ export function CreateCardDialog({ setId }: CreateCardDialogProps) {
               placeholder="The question or prompt"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={handleTextareaKeyDown}
+              className="min-h-24 resize-y"
               required
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="response">Response</Label>
-            <Input
+            <Textarea
               id="response"
               placeholder="The correct answer"
               value={response}
               onChange={(e) => setResponse(e.target.value)}
+              onKeyDown={handleTextareaKeyDown}
+              className="min-h-24 resize-y"
               required
             />
           </div>
           <Button type="submit" disabled={loading || !prompt.trim() || !response.trim()} className="w-full">
-            {loading ? 'Adding...' : 'Add Card'}
+            {loading ? 'Creating...' : 'Create Card'}
           </Button>
         </form>
       </DialogContent>

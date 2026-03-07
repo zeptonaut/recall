@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { DifficultyButtons } from '@/components/difficulty-buttons';
 import { getReviewPreview } from '@/app/actions/study';
 import type { ReviewPreview, ReviewType, StudyQueueItem } from '@/lib/fsrs';
@@ -19,14 +20,6 @@ type CardPhase = 'prompt' | 'incorrect' | 'grading';
 
 function normalizeAnswer(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function HotkeyBadge({ value }: { value: number }) {
-  return (
-    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-current/20 bg-black/10 px-1.5 font-mono text-[11px] leading-none opacity-90">
-      {value}
-    </span>
-  );
 }
 
 /** Typed-answer flashcard that always terminates in an explicit FSRS rating. */
@@ -61,6 +54,13 @@ export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
   function handleOverride() {
     setOverridden(true);
     setPhase('grading');
+  }
+
+  function handleAnswerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+    if (!event.metaKey && !event.ctrlKey) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   }
 
   const submitRating = useCallback((rating: 1 | 2 | 3 | 4) => {
@@ -117,29 +117,38 @@ export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
 
         <div className="space-y-2 text-center">
           <p className="text-sm text-muted-foreground">Prompt</p>
-          <p className="text-2xl font-semibold">{card.prompt}</p>
+          <p className="whitespace-pre-wrap break-words text-2xl font-semibold">{card.prompt}</p>
         </div>
 
         {phase === 'prompt' ? (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
+            <Textarea
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
+              onKeyDown={handleAnswerKeyDown}
               placeholder="Type your answer..."
               autoFocus
+              className="min-h-28 resize-y"
             />
-            <Button type="submit" className="w-full" disabled={!answer.trim()}>
-              Check answer
-            </Button>
+            <div className="flex justify-end">
+              <ShortcutTooltip label="Check answer" shortcuts={['Cmd+Enter', 'Ctrl+Enter']} joiner="or">
+                <Button type="submit" size="sm" disabled={!answer.trim()}>
+                  Check answer
+                </Button>
+              </ShortcutTooltip>
+            </div>
           </form>
         ) : (
           <div className="space-y-4">
             <div className="space-y-2 text-center">
               <p className="text-sm text-muted-foreground">Correct answer</p>
-              <p className="text-xl font-medium">{card.response}</p>
+              <p className="whitespace-pre-wrap break-words text-xl font-medium">{card.response}</p>
               {answer.trim() ? (
                 <p className="text-sm text-muted-foreground">
-                  Your answer: <span className="font-medium text-foreground">{answer}</span>
+                  Your answer:
+                  <span className="mt-1 block whitespace-pre-wrap break-words font-medium text-foreground">
+                    {answer}
+                  </span>
                 </p>
               ) : null}
             </div>
@@ -158,27 +167,27 @@ export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
 
             {phase === 'incorrect' ? (
               <div className="grid gap-2 sm:grid-cols-2">
-                <Button
-                  variant="destructive"
-                  onClick={() => submitRating(1)}
-                  disabled={submitting}
-                  className="h-auto min-h-16 flex-col gap-2 py-3"
-                >
-                  <span className="flex items-center gap-2">
-                    <HotkeyBadge value={1} />
+                <ShortcutTooltip label="Mark again" shortcuts={['Enter', '1']} joiner="or">
+                  <Button
+                    variant="destructive"
+                    onClick={() => submitRating(1)}
+                    disabled={submitting}
+                    className="h-auto min-h-16 flex-col py-3"
+                  >
                     <span>Again</span>
-                  </span>
-                  <span className="text-xs opacity-80">{preview?.again ?? '...'}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleOverride}
-                  disabled={submitting || loadingPreview}
-                  className="h-auto min-h-16 gap-2 py-3"
-                >
-                  <HotkeyBadge value={2} />
-                  <span>I was right</span>
-                </Button>
+                    <span className="text-xs opacity-80">{preview?.again ?? '...'}</span>
+                  </Button>
+                </ShortcutTooltip>
+                <ShortcutTooltip label="Override as correct" shortcuts="2">
+                  <Button
+                    variant="outline"
+                    onClick={handleOverride}
+                    disabled={submitting || loadingPreview}
+                    className="h-auto min-h-16 py-3"
+                  >
+                    <span>I was right</span>
+                  </Button>
+                </ShortcutTooltip>
               </div>
             ) : (
               <div className="space-y-2">

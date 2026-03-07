@@ -1,5 +1,6 @@
 'use client';
 
+import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import { Button } from '@/components/ui/button';
 import type { ReviewPreview } from '@/lib/fsrs';
 
@@ -16,32 +17,22 @@ const DIFFICULTY_OPTIONS = [
   { value: 4, label: 'Easy', variant: 'default' as const, previewKey: 'easy' as const },
 ];
 
-function HotkeyBadge({ value }: { value: number }) {
-  return (
-    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-current/20 bg-black/10 px-1.5 font-mono text-[11px] leading-none opacity-90">
-      {value}
-    </span>
-  );
-}
-
 /** Four FSRS rating buttons with optional interval previews. */
 export function DifficultyButtons({ onSelect, disabled, previews }: DifficultyButtonsProps) {
   return (
     <div className="grid gap-2 sm:grid-cols-4">
       {DIFFICULTY_OPTIONS.map((opt) => (
-        <Button
-          key={opt.value}
-          variant={opt.variant}
-          onClick={() => onSelect(opt.value as 1 | 2 | 3 | 4)}
-          disabled={disabled}
-          className="h-auto min-h-16 flex-col gap-2 py-3"
-        >
-          <span className="flex items-center gap-2">
-            <HotkeyBadge value={opt.value} />
+        <ShortcutTooltip key={opt.value} label={opt.label} shortcuts={String(opt.value)}>
+          <Button
+            variant={opt.variant}
+            onClick={() => onSelect(opt.value as 1 | 2 | 3 | 4)}
+            disabled={disabled}
+            className="h-auto min-h-16 flex-col py-3"
+          >
             <span>{opt.label}</span>
-          </span>
-          <span className="text-xs opacity-80">{previews?.[opt.previewKey] ?? '...'}</span>
-        </Button>
+            <span className="text-xs opacity-80">{previews?.[opt.previewKey] ?? '...'}</span>
+          </Button>
+        </ShortcutTooltip>
       ))}
     </div>
   );
