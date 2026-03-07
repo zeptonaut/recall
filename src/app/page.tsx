@@ -17,8 +17,8 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-bold">Recall</h1>
           <p className="text-muted-foreground">Your spaced repetition sets</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" asChild className="h-11 rounded-xl px-5 shadow-none">
             <Link href="/settings">Settings</Link>
           </Button>
           <CreateSetDialog />

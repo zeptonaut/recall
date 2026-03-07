@@ -47,8 +47,8 @@ export function CreateSetDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button className="h-11 rounded-xl px-5 font-semibold shadow-sm">
+          <Plus className="h-4 w-4" />
           Create Set
         </Button>
       </DialogTrigger>
