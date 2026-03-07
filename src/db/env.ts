@@ -28,6 +28,7 @@ export function getEnvFilePaths(nodeEnv = process.env.NODE_ENV, rootDir = proces
 export function loadEnvironment(nodeEnv = process.env.NODE_ENV, rootDir = process.cwd()) {
   const env = normalizeNodeEnv(nodeEnv);
   const loadedValues: Record<string, string> = {};
+  const mutableEnv = process.env as Record<string, string | undefined>;
 
   for (const filePath of getEnvFilePaths(env, rootDir)) {
     if (!fs.existsSync(filePath)) {
@@ -39,12 +40,11 @@ export function loadEnvironment(nodeEnv = process.env.NODE_ENV, rootDir = proces
   }
 
   for (const [name, value] of Object.entries(loadedValues)) {
-    if (process.env[name] === undefined) {
-      process.env[name] = value;
+    if (mutableEnv[name] === undefined) {
+      mutableEnv[name] = value;
     }
   }
 
-  process.env.NODE_ENV ??= env;
   return env;
 }
 

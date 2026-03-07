@@ -66,9 +66,7 @@ async function runCommand(command: string, args: string[], password?: string) {
 }
 
 async function resetDatabase() {
-  loadEnvironment();
-
-  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  const nodeEnv = loadEnvironment();
   const target = parseResetTarget(getRequiredEnv('DATABASE_URL'));
   const connectionArgs = [
     '--if-exists',
