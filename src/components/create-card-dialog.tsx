@@ -52,7 +52,7 @@ export function CreateCardDialog({ setId }: CreateCardDialogProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-4 w-4" />
           Add Card
         </Button>
       </DialogTrigger>
