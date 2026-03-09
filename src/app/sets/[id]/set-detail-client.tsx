@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, BookOpen, Check, Pencil, Trash2, X } from 'lucide-react';
+import { createCard, deleteCard, updateCard } from '@/app/actions/cards';
 import { deleteSet, updateSet } from '@/app/actions/sets';
 import { CardListItem } from '@/components/card-list-item';
-import { CreateCardDialog } from '@/components/create-card-dialog';
 import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,27 +38,98 @@ interface SetWithCards {
 
 interface SetDetailClientProps {
   set: SetWithCards;
+  mode?: 'view' | 'edit';
+}
+
+interface EditableCardRow {
+  localId: string;
+  id: string | null;
+  prompt: string;
+  response: string;
+}
+
+function hasText(value: string) {
+  return value.trim().length > 0;
+}
+
+function isCompleteRow(row: Pick<EditableCardRow, 'prompt' | 'response'>) {
+  return hasText(row.prompt) && hasText(row.response);
 }
 
 /** Set detail client showing scheduler-driven study stats alongside cards. */
-export function SetDetailClient({ set }: SetDetailClientProps) {
-  const [editing, setEditing] = useState(false);
+export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
+  const draftRowId = useRef(1);
   const [title, setTitle] = useState(set.title);
   const [description, setDescription] = useState(set.description ?? '');
   const [loading, setLoading] = useState(false);
-  const [createCardOpen, setCreateCardOpen] = useState(false);
+  const [cardRows, setCardRows] = useState<EditableCardRow[]>(() => buildEditorRows(set.cards));
   const router = useRouter();
+  const isEditRoute = mode === 'edit';
+
+  function createBlankRow(): EditableCardRow {
+    const localId = `draft-${draftRowId.current}`;
+    draftRowId.current += 1;
+    return { localId, id: null, prompt: '', response: '' };
+  }
+
+  function buildRows(rows: EditableCardRow[]) {
+    const nextRows = [...rows];
+    while (nextRows.length > 1) {
+      const last = nextRows.at(-1);
+      const previous = nextRows.at(-2);
+      if (!last || !previous) break;
+      if (last.id !== null || previous.id !== null) break;
+      if (hasText(last.prompt) || hasText(last.response)) break;
+      if (hasText(previous.prompt) || hasText(previous.response)) break;
+      nextRows.pop();
+    }
+
+    const lastRow = nextRows.at(-1);
+    if (!lastRow || isCompleteRow(lastRow)) {
+      nextRows.push(createBlankRow());
+    }
+
+    return nextRows;
+  }
 
   async function handleSave() {
     if (!title.trim()) return;
+    const incompleteRow = cardRows.find(
+      (row) => hasText(row.prompt) !== hasText(row.response)
+    );
+    if (incompleteRow) {
+      toast.error('Complete or remove the unfinished card before saving');
+      return;
+    }
 
     setLoading(true);
     try {
+      const originalCards = new Map(set.cards.map((card) => [card.id, card]));
+      const keptIds = new Set(
+        cardRows
+          .filter((row) => row.id !== null)
+          .map((row) => row.id as string)
+      );
+      const cardsToDelete = set.cards.filter((card) => !keptIds.has(card.id));
+      const cardsToUpdate = cardRows.filter((row) => {
+        if (!row.id || !isCompleteRow(row)) return false;
+        const original = originalCards.get(row.id);
+        return original ? original.prompt !== row.prompt || original.response !== row.response : false;
+      });
+      const cardsToCreate = cardRows.filter((row) => row.id === null && isCompleteRow(row));
+
       await updateSet(set.id, title.trim(), description.trim());
-      setEditing(false);
+      await Promise.all(cardsToDelete.map((card) => deleteCard(card.id)));
+      await Promise.all(cardsToUpdate.map((row) => updateCard(row.id as string, row.prompt, row.response)));
+      for (const row of cardsToCreate) {
+        await createCard(set.id, row.prompt, row.response);
+      }
+
+      toast.success('Deck updated');
+      router.push(`/sets/${set.id}`);
       router.refresh();
     } catch {
-      toast.error('Failed to update set');
+      toast.error('Failed to update deck');
     } finally {
       setLoading(false);
     }
@@ -80,6 +151,13 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
   }
 
   useEffect(() => {
+    draftRowId.current = 1;
+    setTitle(set.title);
+    setDescription(set.description ?? '');
+    setCardRows(buildEditorRows(set.cards));
+  }, [set.cards, set.description, set.title]);
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
 
@@ -93,13 +171,7 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
         return;
       }
 
-      if (editing || createCardOpen) return;
-
-      if (event.key.toLowerCase() === 'c') {
-        event.preventDefault();
-        setCreateCardOpen(true);
-        return;
-      }
+      if (isEditRoute) return;
 
       if (event.key.toLowerCase() === 's' && set.cards.length > 0) {
         event.preventDefault();
@@ -109,42 +181,56 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [createCardOpen, editing, router, set.cards.length, set.id]);
+  }, [isEditRoute, router, set.cards.length, set.id]);
+
+  function updateCardRow(localId: string, key: 'prompt' | 'response', value: string) {
+    setCardRows((currentRows) =>
+      buildRows(
+        currentRows.map((row) =>
+          row.localId === localId ? { ...row, [key]: value } : row
+        )
+      )
+    );
+  }
+
+  function removeCardRow(localId: string) {
+    setCardRows((currentRows) => buildRows(currentRows.filter((row) => row.localId !== localId)));
+  }
+
+  const hasSavedCards = set.cards.length > 0;
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-6">
-      <Link
-        href="/"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="mr-1 h-4 w-4" />
-        Back to Dashboard
-      </Link>
+      {isEditRoute ? (
+        <Link
+          href={`/sets/${set.id}`}
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          {`Back to ${set.title} set`}
+        </Link>
+      ) : (
+        <Link
+          href="/"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Back to Dashboard
+        </Link>
+      )}
 
-      {editing ? (
+      {isEditRoute ? (
         <div className="space-y-3">
-          <Input value={title} onChange={(event) => setTitle(event.target.value)} className="text-2xl font-bold" />
+          <Input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            className="text-2xl font-bold"
+          />
           <Textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Description (optional)"
           />
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleSave} disabled={loading}>
-              <Check className="mr-1 h-4 w-4" /> Save
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setEditing(false);
-                setTitle(set.title);
-                setDescription(set.description ?? '');
-              }}
-            >
-              <X className="mr-1 h-4 w-4" /> Cancel
-            </Button>
-          </div>
         </div>
       ) : (
         <div className="flex items-start justify-between gap-4">
@@ -169,8 +255,11 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button size="icon" variant="ghost" onClick={() => setEditing(true)}>
+            <Button asChild variant="outline">
+              <Link href={`/sets/${set.id}/edit`}>
               <Pencil className="h-4 w-4" />
+              Edit
+              </Link>
             </Button>
             <Button size="icon" variant="ghost" onClick={handleDelete} disabled={loading}>
               <Trash2 className="h-4 w-4" />
@@ -179,9 +268,8 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <CreateCardDialog setId={set.id} open={createCardOpen} onOpenChange={setCreateCardOpen} />
-        {set.cards.length > 0 ? (
+      {!isEditRoute && hasSavedCards ? (
+        <div className="flex items-center gap-3">
           <ShortcutTooltip label="Study this set" shortcuts="S">
             <Button asChild>
               <Link href={`/sets/${set.id}/study`}>
@@ -190,27 +278,99 @@ export function SetDetailClient({ set }: SetDetailClientProps) {
               </Link>
             </Button>
           </ShortcutTooltip>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <Separator />
 
-      {set.cards.length === 0 ? (
-        <p className="py-8 text-center text-muted-foreground">No cards yet. Add your first card!</p>
+      {isEditRoute ? (
+        <div className="space-y-3">
+          <div className="grid gap-3 text-sm font-medium text-muted-foreground sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div>Question</div>
+            <div>Answer</div>
+            <div className="hidden sm:block" />
+          </div>
+          <div className="space-y-3">
+            {cardRows.map((card) => {
+              const isIncomplete = hasText(card.prompt) !== hasText(card.response);
+              const isBlankDraft = card.id === null && !hasText(card.prompt) && !hasText(card.response);
+
+              return (
+                <div
+                  key={card.localId}
+                  className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-start"
+                >
+                  <Input
+                    value={card.prompt}
+                    onChange={(event) => updateCardRow(card.localId, 'prompt', event.target.value)}
+                    placeholder="Question"
+                    aria-label="Question"
+                    className={isIncomplete ? 'border-destructive' : undefined}
+                  />
+                  <Input
+                    value={card.response}
+                    onChange={(event) => updateCardRow(card.localId, 'response', event.target.value)}
+                    placeholder="Answer"
+                    aria-label="Answer"
+                    className={isIncomplete ? 'border-destructive' : undefined}
+                  />
+                  <Button
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => removeCardRow(card.localId)}
+                    disabled={isBlankDraft}
+                    className="justify-self-start sm:justify-self-center"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              size="sm"
+              variant="ghost"
+              asChild
+            >
+              <Link href={`/sets/${set.id}`}>
+                <X className="mr-1 h-4 w-4" /> Cancel
+              </Link>
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={loading}>
+              <Check className="mr-1 h-4 w-4" /> Save
+            </Button>
+          </div>
+        </div>
+      ) : set.cards.length === 0 ? (
+        <p className="py-8 text-center text-muted-foreground">No cards yet. Open Edit to add your first card.</p>
       ) : (
         <div className="divide-y">
           {set.cards.map((card) => (
             <CardListItem
               key={card.id}
-              id={card.id}
               prompt={card.prompt}
               response={card.response}
               mastery={card.mastery}
               retrievability={card.retrievability}
+              showResponse={false}
             />
           ))}
         </div>
       )}
     </main>
   );
+}
+
+function buildEditorRows(cards: SetWithCards['cards']): EditableCardRow[] {
+  return [
+    ...cards.map((card) => ({
+      localId: card.id,
+      id: card.id,
+      prompt: card.prompt,
+      response: card.response,
+    })),
+    { localId: 'draft-0', id: null, prompt: '', response: '' },
+  ];
 }
