@@ -8,6 +8,7 @@ import { createCard, deleteCard, updateCard } from '@/app/actions/cards';
 import { deleteSet, updateSet } from '@/app/actions/sets';
 import { CardListItem } from '@/components/card-list-item';
 import { HeaderBar } from '@/components/header-bar';
+import { MasteryBadge } from '@/components/mastery-badge';
 import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -269,10 +270,10 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
             <Badge variant={set.stats.dueNowCount > 0 ? 'default' : 'outline'}>
               {set.stats.dueNowCount} due
             </Badge>
-            <Badge variant="outline">New {set.stats.mastery.new}</Badge>
-            <Badge variant="outline">Learning {set.stats.mastery.learning}</Badge>
-            <Badge variant="outline">Familiar {set.stats.mastery.familiar}</Badge>
-            <Badge variant="outline">Mastered {set.stats.mastery.mastered}</Badge>
+            <MasteryBadge mastery="new" count={set.stats.mastery.new} />
+            <MasteryBadge mastery="learning" count={set.stats.mastery.learning} />
+            <MasteryBadge mastery="familiar" count={set.stats.mastery.familiar} />
+            <MasteryBadge mastery="mastered" count={set.stats.mastery.mastered} />
             <Badge variant="secondary">
               {set.stats.lastReviewed
                 ? `Last reviewed ${new Date(set.stats.lastReviewed).toLocaleDateString()}`
@@ -346,7 +347,6 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
               prompt={card.prompt}
               response={card.response}
               mastery={card.mastery}
-              retrievability={card.retrievability}
               showResponse={false}
             />
           ))}

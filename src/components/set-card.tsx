@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { MasteryBadge } from '@/components/mastery-badge';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -49,10 +50,10 @@ export function SetCard({
           </div>
 
           <div className="flex flex-wrap gap-2 text-xs">
-            <Badge variant="outline">New {mastery.new}</Badge>
-            <Badge variant="outline">Learning {mastery.learning}</Badge>
-            <Badge variant="outline">Familiar {mastery.familiar}</Badge>
-            <Badge variant="outline">Mastered {mastery.mastered}</Badge>
+            <MasteryBadge mastery="new" count={mastery.new} />
+            <MasteryBadge mastery="learning" count={mastery.learning} />
+            <MasteryBadge mastery="familiar" count={mastery.familiar} />
+            <MasteryBadge mastery="mastered" count={mastery.mastered} />
           </div>
 
           {averageRetrievability !== null ? (
