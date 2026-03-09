@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, BookOpen, Check, Pencil, Trash2, X } from 'lucide-react';
+import { BookOpen, Check, Pencil, Trash2, X } from 'lucide-react';
 import { createCard, deleteCard, updateCard } from '@/app/actions/cards';
 import { deleteSet, updateSet } from '@/app/actions/sets';
 import { CardListItem } from '@/components/card-list-item';
+import { HeaderBar } from '@/components/header-bar';
 import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -202,21 +203,47 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-6">
       {isEditRoute ? (
-        <Link
-          href={`/sets/${set.id}`}
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          {`Back to ${set.title} set`}
-        </Link>
+        <HeaderBar
+          backHref={`/sets/${set.id}`}
+          backLabel={`Back to ${set.title} set`}
+          actions={(
+            <>
+              <Button variant="secondary" asChild>
+                <Link href={`/sets/${set.id}`}>
+                  <X className="mr-1 h-4 w-4" /> Cancel
+                </Link>
+              </Button>
+              <Button onClick={handleSave} disabled={loading}>
+                <Check className="mr-1 h-4 w-4" /> Save
+              </Button>
+            </>
+          )}
+        />
       ) : (
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to Dashboard
-        </Link>
+        <HeaderBar
+          backHref="/"
+          backLabel="Back to Dashboard"
+          actions={(
+            <>
+              <Button asChild variant="secondary">
+                <Link href={`/sets/${set.id}/edit`}>
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </Link>
+              </Button>
+              {hasSavedCards ? (
+                <ShortcutTooltip label="Study this set" shortcuts="S">
+                  <Button asChild>
+                    <Link href={`/sets/${set.id}/study`}>
+                      <BookOpen className="h-4 w-4" />
+                      Study
+                    </Link>
+                  </Button>
+                </ShortcutTooltip>
+              ) : null}
+            </>
+          )}
+        />
       )}
 
       {isEditRoute ? (
@@ -233,53 +260,27 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
           />
         </div>
       ) : (
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold">{set.title}</h1>
-            {set.description ? (
-              <p className="whitespace-pre-wrap break-words text-muted-foreground">{set.description}</p>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={set.stats.dueNowCount > 0 ? 'default' : 'outline'}>
-                {set.stats.dueNowCount} due
-              </Badge>
-              <Badge variant="outline">New {set.stats.mastery.new}</Badge>
-              <Badge variant="outline">Learning {set.stats.mastery.learning}</Badge>
-              <Badge variant="outline">Familiar {set.stats.mastery.familiar}</Badge>
-              <Badge variant="outline">Mastered {set.stats.mastery.mastered}</Badge>
-              <Badge variant="secondary">
-                {set.stats.lastReviewed
-                  ? `Last reviewed ${new Date(set.stats.lastReviewed).toLocaleDateString()}`
-                  : 'No reviews yet'}
-              </Badge>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/sets/${set.id}/edit`}>
-              <Pencil className="h-4 w-4" />
-              Edit
-              </Link>
-            </Button>
-            <Button size="icon" variant="ghost" onClick={handleDelete} disabled={loading}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">{set.title}</h1>
+          {set.description ? (
+            <p className="whitespace-pre-wrap break-words text-muted-foreground">{set.description}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={set.stats.dueNowCount > 0 ? 'default' : 'outline'}>
+              {set.stats.dueNowCount} due
+            </Badge>
+            <Badge variant="outline">New {set.stats.mastery.new}</Badge>
+            <Badge variant="outline">Learning {set.stats.mastery.learning}</Badge>
+            <Badge variant="outline">Familiar {set.stats.mastery.familiar}</Badge>
+            <Badge variant="outline">Mastered {set.stats.mastery.mastered}</Badge>
+            <Badge variant="secondary">
+              {set.stats.lastReviewed
+                ? `Last reviewed ${new Date(set.stats.lastReviewed).toLocaleDateString()}`
+                : 'No reviews yet'}
+            </Badge>
           </div>
         </div>
       )}
-
-      {!isEditRoute && hasSavedCards ? (
-        <div className="flex items-center gap-3">
-          <ShortcutTooltip label="Study this set" shortcuts="S">
-            <Button asChild>
-              <Link href={`/sets/${set.id}/study`}>
-                <BookOpen className="h-4 w-4" />
-                Study
-              </Link>
-            </Button>
-          </ShortcutTooltip>
-        </div>
-      ) : null}
 
       <Separator />
 
@@ -328,18 +329,10 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
               );
             })}
           </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              size="sm"
-              variant="ghost"
-              asChild
-            >
-              <Link href={`/sets/${set.id}`}>
-                <X className="mr-1 h-4 w-4" /> Cancel
-              </Link>
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={loading}>
-              <Check className="mr-1 h-4 w-4" /> Save
+          <Separator className="mt-6" />
+          <div className="flex justify-end">
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
+              Delete Set
             </Button>
           </div>
         </div>
