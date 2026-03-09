@@ -1,7 +1,7 @@
 import { and, desc, eq, lte, max, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { cards, dailyStats, reviewLogs, userSettings } from '@/db/schema';
-import { getMasteryTier, getRetrievability, getStudyDayWindow, type MasteryTier, type UserSettingsRecord } from '@/lib/fsrs';
+import { getMasteryTier, getRetrievability, type MasteryTier, type UserSettingsRecord } from '@/lib/fsrs';
 
 export interface SetStudyStats {
   totalCards: number;
@@ -45,8 +45,7 @@ export async function incrementDailyStats(studyDate: string, updates: { reviewCo
   return updated;
 }
 
-export async function getDueCountsForSet(setId: string, now: Date, settings: UserSettingsRecord) {
-  const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
+export async function getDueCountsForSet(setId: string, now: Date) {
   const [learningCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(cards)
@@ -55,7 +54,7 @@ export async function getDueCountsForSet(setId: string, now: Date, settings: Use
   const [reviewCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(cards)
-    .where(and(eq(cards.setId, setId), eq(cards.state, 'review'), lte(cards.due, studyDay.end)));
+    .where(and(eq(cards.setId, setId), eq(cards.state, 'review'), lte(cards.due, now)));
 
   const [newCount] = await db
     .select({ count: sql<number>`count(*)` })
@@ -102,12 +101,12 @@ export async function getCardsForRecentLapses(setId: string, now: Date, count: n
     .limit(count);
 }
 
-export async function computeSetStudyStats(setId: string, settings: UserSettingsRecord): Promise<SetStudyStats> {
+export async function computeSetStudyStats(setId: string): Promise<SetStudyStats> {
   const now = new Date();
   const allCards = await db.query.cards.findMany({
     where: eq(cards.setId, setId),
   });
-  const dueCounts = await getDueCountsForSet(setId, now, settings);
+  const dueCounts = await getDueCountsForSet(setId, now);
   const lastReviewed = await getLastReviewedAt(setId);
 
   const mastery = allCards.reduce<Record<MasteryTier, number>>(

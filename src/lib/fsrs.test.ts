@@ -6,6 +6,7 @@ import {
   fromFsrsCard,
   getMasteryTier,
   getRetrievability,
+  isScheduledCardDueNow,
   getStudyDayWindow,
   toFsrsCard,
   type CardRecord,
@@ -122,4 +123,21 @@ test('buildReviewPreview returns interval labels for all four ratings', () => {
   assert.ok(preview.hard.length > 0);
   assert.ok(preview.good.length > 0);
   assert.ok(preview.easy.length > 0);
+});
+
+test('isScheduledCardDueNow only returns true for non-new cards whose due date has arrived', () => {
+  const now = new Date('2026-03-06T12:00:00Z');
+
+  assert.equal(
+    isScheduledCardDueNow(makeCard({ state: 'review', due: new Date('2026-03-06T11:59:00Z') }), now),
+    true
+  );
+  assert.equal(
+    isScheduledCardDueNow(makeCard({ state: 'review', due: new Date('2026-03-06T12:01:00Z') }), now),
+    false
+  );
+  assert.equal(
+    isScheduledCardDueNow(makeCard({ state: 'new', due: new Date('2026-03-06T11:59:00Z') }), now),
+    false
+  );
 });

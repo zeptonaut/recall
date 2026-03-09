@@ -44,7 +44,7 @@ export async function getDueStudyQueue(setId: string) {
   });
 
   const reviews = await db.query.cards.findMany({
-    where: and(eq(cards.setId, setId), eq(cards.state, 'review'), lte(cards.due, studyDay.end)),
+    where: and(eq(cards.setId, setId), eq(cards.state, 'review'), lte(cards.due, now)),
     orderBy: [asc(cards.due)],
   });
 
@@ -202,8 +202,7 @@ export async function getDrillQueue(setId: string, count = 10, mode: DrillMode =
 }
 
 export async function getSetStudyStats(setId: string) {
-  const settings = await ensureUserSettings();
-  return computeSetStudyStats(setId, settings);
+  return computeSetStudyStats(setId);
 }
 
 export async function getDrillModes() {

@@ -19,7 +19,7 @@ export async function getSets() {
 
   return Promise.all(
     result.map(async (set) => {
-      const stats = await computeSetStudyStats(set.id, settings);
+      const stats = await computeSetStudyStats(set.id);
       return {
         id: set.id,
         title: set.title,
@@ -49,7 +49,7 @@ export async function getSet(id: string) {
   if (!set) return null;
 
   const now = new Date();
-  const stats = await computeSetStudyStats(id, settings);
+  const stats = await computeSetStudyStats(id);
 
   return {
     ...set,

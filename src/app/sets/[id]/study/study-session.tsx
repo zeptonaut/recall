@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { useMemo, useState, useTransition } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { getDrillQueue, submitReview } from '@/app/actions/study';
+import { getDrillQueue, getDueStudyQueue, submitReview } from '@/app/actions/study';
 import { StudyCard } from '@/components/study-card';
 import { StudySummary } from '@/components/study-summary';
 import { Progress } from '@/components/ui/progress';
-import type { DrillMode, StudyQueueItem } from '@/lib/fsrs';
+import { isScheduledCardDueNow, type DrillMode, type StudyQueueItem } from '@/lib/fsrs';
 
 interface DrillModeOption {
   id: DrillMode;
@@ -43,7 +43,7 @@ export function StudySession({ setId, setTitle, initialCards, drillModes }: Stud
   async function handleRate(rating: 1 | 2 | 3 | 4, elapsedMs: number) {
     if (!currentCard) return;
 
-    await submitReview({
+    const { card: reviewedCard } = await submitReview({
       cardId: currentCard.id,
       rating,
       reviewType: mode,
@@ -51,13 +51,35 @@ export function StudySession({ setId, setTitle, initialCards, drillModes }: Stud
     });
 
     setResults((existing) => [...existing, { rating }]);
+
+    if (mode === 'drill') {
+      setQueue((existing) => {
+        const [, ...remaining] = existing;
+        if (rating === 1) {
+          return [...remaining, currentCard];
+        }
+        return remaining;
+      });
+      return;
+    }
+
+    const now = new Date();
+    const shouldReplayReviewedCard = isScheduledCardDueNow(reviewedCard, now);
+
     setQueue((existing) => {
       const [, ...remaining] = existing;
-      if (mode === 'drill' && rating === 1) {
-        return [...remaining, currentCard];
+      if (shouldReplayReviewedCard) {
+        return [...remaining, reviewedCard];
       }
       return remaining;
     });
+
+    if (queue.length === 1 && !shouldReplayReviewedCard) {
+      const refreshedQueue = await getDueStudyQueue(setId);
+      if (refreshedQueue.cards.length > 0) {
+        setQueue(refreshedQueue.cards);
+      }
+    }
   }
 
   function startDrill(drillMode: DrillMode) {

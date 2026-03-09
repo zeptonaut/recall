@@ -185,6 +185,10 @@ export function buildReviewPreview(card: CardRecord, settings: UserSettingsRecor
   };
 }
 
+export function isScheduledCardDueNow(card: Pick<CardRecord, 'state' | 'due'>, now: Date) {
+  return card.state !== 'new' && card.due.getTime() <= now.getTime();
+}
+
 export function toStudyQueueItem(card: CardRecord, now: Date, weights?: number[] | null): StudyQueueItem {
   return {
     id: card.id,
