@@ -10,12 +10,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { createCard } from '@/app/actions/cards';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
+import { CardContentInput } from '@/components/card-content-input';
 
 interface CreateCardDialogProps {
   setId: string;
@@ -49,11 +49,11 @@ export function CreateCardDialog({ setId, open, onOpenChange }: CreateCardDialog
     }
   }
 
-  function handleTextareaKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleTextareaKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
     if (!event.metaKey && !event.ctrlKey) return;
     event.preventDefault();
-    event.currentTarget.form?.requestSubmit();
+    event.currentTarget.closest('form')?.requestSubmit();
   }
 
   return (
@@ -82,25 +82,25 @@ export function CreateCardDialog({ setId, open, onOpenChange }: CreateCardDialog
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="prompt">Prompt</Label>
-            <Textarea
+            <CardContentInput
               id="prompt"
               placeholder="The question or prompt"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={setPrompt}
               onKeyDown={handleTextareaKeyDown}
-              className="min-h-24 resize-y"
+              className="min-h-28"
               required
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="response">Response</Label>
-            <Textarea
+            <CardContentInput
               id="response"
               placeholder="The correct answer"
               value={response}
-              onChange={(e) => setResponse(e.target.value)}
+              onChange={setResponse}
               onKeyDown={handleTextareaKeyDown}
-              className="min-h-24 resize-y"
+              className="min-h-28"
               required
             />
           </div>

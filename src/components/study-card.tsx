@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { CardContentDisplay } from '@/components/card-content-display';
 import { Card, CardContent } from '@/components/ui/card';
 import { DifficultyButtons } from '@/components/difficulty-buttons';
 import { getReviewPreview } from '@/app/actions/study';
@@ -81,15 +82,25 @@ export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
         aria-label={phase === 'prompt' ? 'Reveal answer' : undefined}
       >
         <CardContent className="flex min-h-[58dvh] items-center justify-center py-10 sm:min-h-[20rem] sm:py-12">
-          <div className="-translate-y-[6%] space-y-6">
-            <div className="text-center">
-              <p className="whitespace-pre-wrap break-words text-3xl font-semibold sm:text-4xl">{card.prompt}</p>
+          <div className="w-full max-w-3xl -translate-y-[6%] space-y-6 text-center">
+            <div>
+              <CardContentDisplay
+                content={card.prompt}
+                className="space-y-4"
+                imageClassName="mx-auto max-h-96"
+                textClassName="text-3xl font-semibold sm:text-4xl"
+              />
             </div>
 
             {phase === 'answer' ? (
               <div className="space-y-4 border-t pt-6">
-                <div className="text-center">
-                  <p className="whitespace-pre-wrap break-words text-xl font-medium">{card.response}</p>
+                <div>
+                  <CardContentDisplay
+                    content={card.response}
+                    className="space-y-4"
+                    imageClassName="mx-auto max-h-80"
+                    textClassName="text-xl font-medium"
+                  />
                 </div>
 
                 <div className="space-y-2">

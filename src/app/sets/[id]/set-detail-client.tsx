@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { BookOpen, Check, Pencil, Trash2, X } from 'lucide-react';
 import { createCard, deleteCard, updateCard } from '@/app/actions/cards';
 import { deleteSet, updateSet } from '@/app/actions/sets';
+import { CardContentInput } from '@/components/card-content-input';
 import { CardListItem } from '@/components/card-list-item';
 import { HeaderBar } from '@/components/header-bar';
 import { MasteryBadge } from '@/components/mastery-badge';
@@ -238,6 +239,14 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
                     <Link href={`/sets/${set.id}/study`}>
                       <BookOpen className="h-4 w-4" />
                       Study
+                      {set.stats.dueNowCount > 0 ? (
+                        <Badge
+                          variant="secondary"
+                          className="border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground"
+                        >
+                          {set.stats.dueNowCount}
+                        </Badge>
+                      ) : null}
                     </Link>
                   </Button>
                 </ShortcutTooltip>
@@ -267,9 +276,6 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
             <p className="whitespace-pre-wrap break-words text-muted-foreground">{set.description}</p>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Badge variant={set.stats.dueNowCount > 0 ? 'default' : 'outline'}>
-              {set.stats.dueNowCount} due
-            </Badge>
             <MasteryBadge mastery="new" count={set.stats.mastery.new} />
             <MasteryBadge mastery="learning" count={set.stats.mastery.learning} />
             <MasteryBadge mastery="familiar" count={set.stats.mastery.familiar} />
@@ -287,12 +293,12 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
 
       {isEditRoute ? (
         <div className="space-y-3">
-          <div className="grid gap-3 text-sm font-medium text-muted-foreground sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <div className="grid gap-3 text-sm font-medium text-muted-foreground lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <div>Question</div>
             <div>Answer</div>
-            <div className="hidden sm:block" />
+            <div className="hidden lg:block" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {cardRows.map((card) => {
               const isIncomplete = hasText(card.prompt) !== hasText(card.response);
               const isBlankDraft = card.id === null && !hasText(card.prompt) && !hasText(card.response);
@@ -300,18 +306,18 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
               return (
                 <div
                   key={card.localId}
-                  className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-start"
+                  className="grid gap-3 rounded-xl border border-transparent lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-start"
                 >
-                  <Input
+                  <CardContentInput
                     value={card.prompt}
-                    onChange={(event) => updateCardRow(card.localId, 'prompt', event.target.value)}
+                    onChange={(value) => updateCardRow(card.localId, 'prompt', value)}
                     placeholder="Question"
                     aria-label="Question"
                     className={isIncomplete ? 'border-destructive' : undefined}
                   />
-                  <Input
+                  <CardContentInput
                     value={card.response}
-                    onChange={(event) => updateCardRow(card.localId, 'response', event.target.value)}
+                    onChange={(value) => updateCardRow(card.localId, 'response', value)}
                     placeholder="Answer"
                     aria-label="Answer"
                     className={isIncomplete ? 'border-destructive' : undefined}
@@ -322,7 +328,7 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
                     variant="ghost"
                     onClick={() => removeCardRow(card.localId)}
                     disabled={isBlankDraft}
-                    className="justify-self-start sm:justify-self-center"
+                    className="justify-self-start lg:mt-2 lg:justify-self-center"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
