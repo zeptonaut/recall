@@ -17,13 +17,15 @@ interface DrillModeOption {
 }
 
 interface StudySummaryProps {
-  setId: string;
   mode: 'scheduled' | 'drill';
   totalReviewed: number;
   results: StudyResult[];
+  backHref: string;
+  backLabel: string;
   drillModes?: DrillModeOption[];
   onStartDrill?: (mode: DrillMode) => void;
   onPracticeAgain?: () => void;
+  onReturnToSelection?: () => void;
 }
 
 const LABELS: Record<StudyResult['rating'], string> = {
@@ -35,13 +37,15 @@ const LABELS: Record<StudyResult['rating'], string> = {
 
 /** Session summary for scheduled and drill study flows. */
 export function StudySummary({
-  setId,
   mode,
   totalReviewed,
   results,
+  backHref,
+  backLabel,
   drillModes = [],
   onStartDrill,
   onPracticeAgain,
+  onReturnToSelection,
 }: StudySummaryProps) {
   const counts = results.reduce<Record<number, number>>((acc, result) => {
     acc[result.rating] = (acc[result.rating] ?? 0) + 1;
@@ -110,8 +114,13 @@ export function StudySummary({
               Try another drill
             </Button>
           ) : null}
+          {onReturnToSelection ? (
+            <Button variant="secondary" className="flex-1" onClick={onReturnToSelection}>
+              Choose sets
+            </Button>
+          ) : null}
           <Button variant="outline" className="flex-1" asChild>
-            <Link href={`/sets/${setId}`}>Back to Set</Link>
+            <Link href={backHref}>{backLabel}</Link>
           </Button>
         </div>
       </CardContent>

@@ -1,6 +1,6 @@
 'use server';
 
-import { and, asc, desc, eq, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import { cards, reviewLogs } from '@/db/schema';
@@ -25,7 +25,26 @@ import {
   incrementDailyStats,
 } from '@/lib/study-store';
 
-export async function getDueStudyQueue(setId: string) {
+function normalizeSetIds(setIds: string[]) {
+  return [...new Set(setIds.filter(Boolean))];
+}
+
+export async function getDueStudyQueue(setIds: string[]) {
+  const normalizedSetIds = normalizeSetIds(setIds);
+  if (normalizedSetIds.length === 0) {
+    return {
+      cards: [],
+      counts: {
+        learning: 0,
+        review: 0,
+        new: 0,
+        remainingReviewBudget: 0,
+        remainingNewBudget: 0,
+      },
+      studyDate: '',
+    };
+  }
+
   const settings = await ensureUserSettings();
   const now = new Date();
   const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
@@ -35,8 +54,9 @@ export async function getDueStudyQueue(setId: string) {
   const remainingReviewBudget = Math.max(0, settings.maxReviewsPerDay - stats.reviewCount);
 
   const learning = await db.query.cards.findMany({
+    with: { set: true },
     where: and(
-      eq(cards.setId, setId),
+      inArray(cards.setId, normalizedSetIds),
       sql`${cards.state} in ('learning', 'relearning')`,
       lte(cards.due, now)
     ),
@@ -44,13 +64,15 @@ export async function getDueStudyQueue(setId: string) {
   });
 
   const reviews = await db.query.cards.findMany({
-    where: and(eq(cards.setId, setId), eq(cards.state, 'review'), lte(cards.due, now)),
+    with: { set: true },
+    where: and(inArray(cards.setId, normalizedSetIds), eq(cards.state, 'review'), lte(cards.due, now)),
     orderBy: [asc(cards.due)],
   });
 
   const newCards = remainingNewBudget
     ? await db.query.cards.findMany({
-        where: and(eq(cards.setId, setId), eq(cards.state, 'new')),
+        with: { set: true },
+        where: and(inArray(cards.setId, normalizedSetIds), eq(cards.state, 'new')),
         orderBy: [asc(cards.createdAt)],
         limit: remainingNewBudget,
       })
@@ -59,7 +81,7 @@ export async function getDueStudyQueue(setId: string) {
   const queue = [...learning, ...reviews, ...newCards].slice(0, remainingReviewBudget);
 
   return {
-    cards: queue.map((card) => toStudyQueueItem(card, now, settings.fsrsWeights)),
+    cards: queue.map((card) => toStudyQueueItem(card, now, settings.fsrsWeights, card.set.title)),
     counts: {
       learning: learning.length,
       review: reviews.length,
@@ -92,7 +114,7 @@ export async function submitReview(input: {
   elapsedMs: number;
 }) {
   const [card, settings] = await Promise.all([
-    db.query.cards.findFirst({ where: eq(cards.id, input.cardId) }),
+    db.query.cards.findFirst({ where: eq(cards.id, input.cardId), with: { set: true } }),
     ensureUserSettings(),
   ]);
 
@@ -137,18 +159,27 @@ export async function submitReview(input: {
     });
 
     revalidatePath('/');
+    revalidatePath('/study');
     revalidatePath(`/sets/${card.setId}`);
     revalidatePath(`/sets/${card.setId}/study`);
   }
 
   return {
     reviewType: input.reviewType,
-    card: input.reviewType === 'scheduled' ? toStudyQueueItem({ ...card, ...nextCardState }, now, settings.fsrsWeights) : toStudyQueueItem(card, now, settings.fsrsWeights),
+    card:
+      input.reviewType === 'scheduled'
+        ? toStudyQueueItem({ ...card, ...nextCardState }, now, settings.fsrsWeights, card.set.title)
+        : toStudyQueueItem(card, now, settings.fsrsWeights, card.set.title),
   };
 }
 
-export async function getDrillQueue(setId: string, count = 10, mode: DrillMode = 'weakest') {
-  const dueQueue = await getDueStudyQueue(setId);
+export async function getDrillQueue(setIds: string[], count = 10, mode: DrillMode = 'weakest') {
+  const normalizedSetIds = normalizeSetIds(setIds);
+  if (normalizedSetIds.length === 0) {
+    return [];
+  }
+
+  const dueQueue = await getDueStudyQueue(normalizedSetIds);
   if (dueQueue.cards.length > 0) {
     return [];
   }
@@ -156,49 +187,55 @@ export async function getDrillQueue(setId: string, count = 10, mode: DrillMode =
   const settings = await ensureUserSettings();
   const now = new Date();
 
-  const baseWhere = and(eq(cards.setId, setId), ne(cards.state, 'new'));
+  const baseWhere = and(inArray(cards.setId, normalizedSetIds), ne(cards.state, 'new'));
   let drillCards =
     mode === 'weakest'
       ? await db.query.cards.findMany({
+          with: { set: true },
           where: baseWhere,
           orderBy: [asc(cards.stability), asc(cards.lastReview)],
           limit: count,
         })
       : mode === 'hardest'
         ? await db.query.cards.findMany({
+            with: { set: true },
             where: baseWhere,
             orderBy: [desc(cards.difficulty), desc(cards.lastReview)],
             limit: count,
           })
         : mode === 'most_lapsed'
           ? await db.query.cards.findMany({
+              with: { set: true },
               where: baseWhere,
               orderBy: [desc(cards.lapses), desc(cards.lastReview)],
               limit: count,
             })
           : mode === 'due_soon'
             ? await db.query.cards.findMany({
+                with: { set: true },
                 where: baseWhere,
                 orderBy: [asc(cards.due)],
                 limit: count,
               })
             : mode === 'random'
               ? await db.query.cards.findMany({
+                  with: { set: true },
                   where: baseWhere,
                   orderBy: sql`RANDOM()`,
                   limit: count,
                 })
-              : (await getCardsForRecentLapses(setId, now, count)).map((row) => row.card);
+              : await getCardsForRecentLapses(normalizedSetIds, now, count);
 
   if (mode === 'recent_lapses' && drillCards.length === 0) {
     drillCards = await db.query.cards.findMany({
+      with: { set: true },
       where: baseWhere,
       orderBy: [asc(cards.stability), asc(cards.lastReview)],
       limit: count,
     });
   }
 
-  return drillCards.map((card) => toStudyQueueItem(card, now, settings.fsrsWeights));
+  return drillCards.map((card) => toStudyQueueItem(card, now, settings.fsrsWeights, card.set.title));
 }
 
 export async function getSetStudyStats(setId: string) {

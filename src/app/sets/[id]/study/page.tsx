@@ -1,7 +1,7 @@
 import { getSet } from '@/app/actions/sets';
 import { getDrillModes, getDueStudyQueue } from '@/app/actions/study';
+import { StudySession } from '@/components/study-session';
 import { notFound } from 'next/navigation';
-import { StudySession } from './study-session';
 
 interface StudyPageProps {
   params: Promise<{ id: string }>;
@@ -14,17 +14,19 @@ export default async function StudyPage({ params }: StudyPageProps) {
   if (!set) notFound();
 
   const [dueQueue, drillModes] = await Promise.all([
-    getDueStudyQueue(id),
+    getDueStudyQueue([id]),
     getDrillModes(),
   ]);
 
   return (
     <main className="mx-auto max-w-3xl p-6">
       <StudySession
-        setId={id}
-        setTitle={set.title}
+        setIds={[id]}
+        studyLabel={set.title}
         initialCards={dueQueue.cards}
         drillModes={drillModes}
+        backHref={`/sets/${id}`}
+        backLabel={`Back to ${set.title}`}
       />
     </main>
   );

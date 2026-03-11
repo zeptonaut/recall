@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CreateSetDialog } from '@/components/create-set-dialog';
+import { CreateSetTile } from '@/components/create-set-tile';
 import { SetCard } from '@/components/set-card';
 import { Button } from '@/components/ui/button';
 import { getSets } from '@/app/actions/sets';
@@ -18,34 +18,31 @@ export default async function DashboardPage() {
           <p className="text-muted-foreground">Your spaced repetition sets</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" asChild className="h-11 rounded-xl px-5 shadow-none">
+          <Button variant="outline" asChild>
             <Link href="/settings">Settings</Link>
           </Button>
-          <CreateSetDialog />
+          <Button asChild>
+            <Link href="/study">Study</Link>
+          </Button>
         </div>
       </div>
 
-      {sets.length === 0 ? (
-        <div className="py-16 text-center">
-          <p className="text-lg text-muted-foreground">No sets yet. Create your first one!</p>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sets.map((set) => (
-            <SetCard
-              key={set.id}
-              id={set.id}
-              title={set.title}
-              description={set.description}
-              cardCount={set.cardCount}
-              dueCount={set.dueCount}
-              mastery={set.mastery}
-              lastStudied={set.lastStudied}
-              averageRetrievability={set.averageRetrievability}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {sets.map((set) => (
+          <SetCard
+            key={set.id}
+            id={set.id}
+            title={set.title}
+            description={set.description}
+            cardCount={set.cardCount}
+            dueCount={set.dueCount}
+            mastery={set.mastery}
+            lastStudied={set.lastStudied}
+            averageRetrievability={set.averageRetrievability}
+          />
+        ))}
+        <CreateSetTile />
+      </div>
     </main>
   );
 }

@@ -79,6 +79,7 @@ export async function createSet(title: string, description: string) {
     .returning();
 
   revalidatePath('/');
+  revalidatePath('/study');
   return newSet;
 }
 
@@ -91,6 +92,7 @@ export async function updateSet(id: string, title: string, description: string) 
     .returning();
 
   revalidatePath('/');
+  revalidatePath('/study');
   revalidatePath(`/sets/${id}`);
   revalidatePath(`/sets/${id}/study`);
   return updated;
@@ -100,6 +102,7 @@ export async function updateSet(id: string, title: string, description: string) 
 export async function deleteSet(id: string) {
   await db.delete(sets).where(eq(sets.id, id));
   revalidatePath('/');
+  revalidatePath('/study');
 }
 
 export async function getSetCardCount(id: string) {

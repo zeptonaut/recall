@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
+import { CheckCircle2 } from 'lucide-react';
 import { MasteryBadge } from '@/components/mastery-badge';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
-interface SetCardProps {
-  id: string;
+interface StudySelectionCardProps {
   title: string;
   description: string | null;
   cardCount: number;
@@ -19,11 +19,12 @@ interface SetCardProps {
     mastered: number;
   };
   averageRetrievability: number | null;
+  selected: boolean;
+  onToggle: () => void;
 }
 
-/** Dashboard tile showing due work, mastery distribution, and recent study activity. */
-export function SetCard({
-  id,
+/** Toggleable set card used on the study batch selection screen. */
+export function StudySelectionCard({
   title,
   description,
   cardCount,
@@ -31,13 +32,36 @@ export function SetCard({
   lastStudied,
   mastery,
   averageRetrievability,
-}: SetCardProps) {
+  selected,
+  onToggle,
+}: StudySelectionCardProps) {
   return (
-    <Link href={`/sets/${id}`}>
-      <Card className="h-full min-h-64 cursor-pointer transition-colors hover:bg-muted/50">
+    <button type="button" onClick={onToggle} aria-pressed={selected} className="h-full w-full text-left">
+      <Card
+        className={cn(
+          'h-full min-h-64 cursor-pointer transition-colors',
+          selected
+            ? 'border-foreground bg-muted/40 shadow-sm'
+            : 'hover:bg-muted/50'
+        )}
+      >
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">{title}</CardTitle>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-2">
+              <CardTitle className="text-lg">{title}</CardTitle>
+              {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+            </div>
+            <Badge variant={selected ? 'default' : 'outline'} className="shrink-0">
+              {selected ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Included
+                </>
+              ) : (
+                'Excluded'
+              )}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -71,6 +95,6 @@ export function SetCard({
           )}
         </CardContent>
       </Card>
-    </Link>
+    </button>
   );
 }

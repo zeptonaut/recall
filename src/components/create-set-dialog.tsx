@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { ShortcutTooltip } from '@/components/shortcut-tooltip';
 import {
@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 
 /** Dialog form for creating a new flashcard set */
-export function CreateSetDialog() {
+export function CreateSetDialog({ trigger }: { trigger?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -48,10 +48,12 @@ export function CreateSetDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="h-11 rounded-xl px-5 font-semibold shadow-sm">
-          <Plus className="h-4 w-4" />
-          Create Set
-        </Button>
+        {trigger ?? (
+          <Button className="h-11 rounded-xl px-5 font-semibold shadow-sm">
+            <Plus className="h-4 w-4" />
+            Create Set
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

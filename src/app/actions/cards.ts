@@ -29,6 +29,7 @@ export async function createCard(setId: string, prompt: string, response: string
   }).returning();
 
   revalidatePath(`/sets/${setId}`);
+  revalidatePath('/study');
   return newCard;
 }
 
@@ -41,6 +42,7 @@ export async function updateCard(id: string, prompt: string, response: string) {
     .returning();
   if (updated) {
     revalidatePath(`/sets/${updated.setId}`);
+    revalidatePath('/study');
   }
   return updated;
 }
@@ -53,6 +55,7 @@ export async function deleteCard(id: string) {
     .returning();
   if (deleted) {
     revalidatePath(`/sets/${deleted.setId}`);
+    revalidatePath('/study');
   }
   return deleted;
 }

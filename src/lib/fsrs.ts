@@ -28,6 +28,8 @@ export interface ReviewPreview {
 
 export interface StudyQueueItem {
   id: string;
+  setId: string;
+  setTitle: string;
   prompt: string;
   response: string;
   due: Date;
@@ -189,9 +191,16 @@ export function isScheduledCardDueNow(card: Pick<CardRecord, 'state' | 'due'>, n
   return card.state !== 'new' && card.due.getTime() <= now.getTime();
 }
 
-export function toStudyQueueItem(card: CardRecord, now: Date, weights?: number[] | null): StudyQueueItem {
+export function toStudyQueueItem(
+  card: CardRecord,
+  now: Date,
+  weights?: number[] | null,
+  setTitle?: string
+): StudyQueueItem {
   return {
     id: card.id,
+    setId: card.setId,
+    setTitle: setTitle ?? '',
     prompt: card.prompt,
     response: card.response,
     due: card.due,

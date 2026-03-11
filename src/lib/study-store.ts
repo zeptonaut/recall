@@ -1,4 +1,4 @@
-import { and, desc, eq, lte, max, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, max, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { cards, dailyStats, reviewLogs, userSettings } from '@/db/schema';
 import { getMasteryTier, getRetrievability, type MasteryTier, type UserSettingsRecord } from '@/lib/fsrs';
@@ -78,27 +78,25 @@ export async function getLastReviewedAt(setId: string) {
   return result?.lastReviewed ?? null;
 }
 
-export async function getCardsForRecentLapses(setId: string, now: Date, count: number) {
+export async function getCardsForRecentLapses(setIds: string[], now: Date, count: number) {
   const threshold = new Date(now.getTime() - 7 * 86_400_000);
-  return db
-    .select({ card: cards })
-    .from(cards)
-    .where(
-      and(
-        eq(cards.setId, setId),
-        ne(cards.state, 'new'),
-        sql`exists (
-          select 1
-          from ${reviewLogs}
-          where ${reviewLogs.cardId} = ${cards.id}
-            and ${reviewLogs.reviewType} = 'scheduled'
-            and ${reviewLogs.rating} = 1
-            and ${reviewLogs.reviewedAt} >= ${threshold}
-        )`
-      )
-    )
-    .orderBy(desc(cards.lastReview), desc(cards.lapses))
-    .limit(count);
+  return db.query.cards.findMany({
+    with: { set: true },
+    where: and(
+      inArray(cards.setId, setIds),
+      ne(cards.state, 'new'),
+      sql`exists (
+        select 1
+        from ${reviewLogs}
+        where ${reviewLogs.cardId} = ${cards.id}
+          and ${reviewLogs.reviewType} = 'scheduled'
+          and ${reviewLogs.rating} = 1
+          and ${reviewLogs.reviewedAt} >= ${threshold}
+      )`
+    ),
+    orderBy: [desc(cards.lastReview), desc(cards.lapses)],
+    limit: count,
+  });
 }
 
 export async function computeSetStudyStats(setId: string): Promise<SetStudyStats> {
