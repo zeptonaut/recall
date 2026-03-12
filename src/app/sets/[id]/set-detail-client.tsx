@@ -19,6 +19,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import type { MasteryTier } from '@/lib/fsrs';
 
+const masteryOrder: MasteryTier[] = ['new', 'learning', 'familiar', 'mastered'];
+
 interface Card {
   id: string;
   prompt: string;
@@ -203,7 +205,7 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
   const hasSavedCards = set.cards.length > 0;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
+    <main className="mx-auto max-w-4xl space-y-8 px-7 py-6 sm:px-6">
       {isEditRoute ? (
         <HeaderBar
           backHref={`/sets/${set.id}`}
@@ -242,7 +244,7 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
                       {set.stats.dueNowCount > 0 ? (
                         <Badge
                           variant="secondary"
-                          className="border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground"
+                          className="bg-amber-200/60 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
                         >
                           {set.stats.dueNowCount}
                         </Badge>
@@ -270,26 +272,24 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
           />
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <h1 className="text-3xl font-bold">{set.title}</h1>
           {set.description ? (
             <p className="whitespace-pre-wrap break-words text-muted-foreground">{set.description}</p>
           ) : null}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <MasteryBadge mastery="new" count={set.stats.mastery.new} />
             <MasteryBadge mastery="learning" count={set.stats.mastery.learning} />
             <MasteryBadge mastery="familiar" count={set.stats.mastery.familiar} />
             <MasteryBadge mastery="mastered" count={set.stats.mastery.mastered} />
-            <Badge variant="secondary">
-              {set.stats.lastReviewed
-                ? `Last reviewed ${new Date(set.stats.lastReviewed).toLocaleDateString()}`
-                : 'No reviews yet'}
-            </Badge>
           </div>
+          <p className="text-xs text-muted-foreground">
+            {set.stats.lastReviewed
+              ? `Last reviewed ${new Date(set.stats.lastReviewed).toLocaleDateString()}`
+              : 'No reviews yet'}
+          </p>
         </div>
       )}
-
-      <Separator />
 
       {isEditRoute ? (
         <div className="space-y-3">
@@ -346,16 +346,28 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
       ) : set.cards.length === 0 ? (
         <p className="py-8 text-center text-muted-foreground">No cards yet. Open Edit to add your first card.</p>
       ) : (
-        <div className="divide-y">
-          {set.cards.map((card) => (
-            <CardListItem
-              key={card.id}
-              prompt={card.prompt}
-              response={card.response}
-              mastery={card.mastery}
-              showResponse={false}
-            />
-          ))}
+        <div className="space-y-10">
+          {masteryOrder.map((tier) => {
+            const cards = set.cards.filter((c) => c.mastery === tier);
+            if (cards.length === 0) return null;
+            return (
+              <div key={tier}>
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+                  {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                </h2>
+                <div className="divide-y divide-border/30">
+                  {cards.map((card) => (
+                    <CardListItem
+                      key={card.id}
+                      prompt={card.prompt}
+                      response={card.response}
+                      showResponse={false}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </main>

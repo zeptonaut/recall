@@ -16,13 +16,14 @@ export function HeaderBar({ backHref, backLabel, actions }: HeaderBarProps) {
     <div className="flex items-center justify-between gap-4">
       <Link
         href={backHref}
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="mr-1 h-4 w-4" />
-        {backLabel}
+        <ArrowLeft className="h-4 w-4 shrink-0" />
+        <span className="hidden sm:inline">{backLabel}</span>
+        <span className="sm:hidden">Back</span>
       </Link>
       {actions ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {actions}
         </div>
       ) : null}

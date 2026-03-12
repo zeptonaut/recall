@@ -114,7 +114,8 @@ export function StudyPageClient({ sets, drillModes }: StudyPageClientProps) {
               <>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={selectAllSets}
                   disabled={selectedSetIds.length === allSetIds.length}
                 >

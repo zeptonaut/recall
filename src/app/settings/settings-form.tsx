@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { updateUserSettings } from '@/app/actions/settings';
+import { HeaderBar } from '@/components/header-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,13 +55,7 @@ export function SettingsForm({ initialValues }: SettingsFormProps) {
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-6">
-      <Link
-        href="/"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="mr-1 h-4 w-4" />
-        Back to Dashboard
-      </Link>
+      <HeaderBar backHref="/" backLabel="Back to Dashboard" />
 
       <Card>
         <CardHeader>

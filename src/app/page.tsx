@@ -14,13 +14,13 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <RecallLogo size={36} />
-          <h1 className="text-3xl font-bold">Recall</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <RecallLogo size={28} />
+          <h1 className="text-xl font-semibold tracking-tight text-foreground/90">Recall</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" asChild>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
             <Link href="/settings">Settings</Link>
           </Button>
           <StudyButton />
