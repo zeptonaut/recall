@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { CreateSetTile } from '@/components/create-set-tile';
+import { RecallLogo } from '@/components/recall-logo';
 import { SetCard } from '@/components/set-card';
+import { StudyButton } from '@/components/study-button';
 import { Button } from '@/components/ui/button';
 import { getSets } from '@/app/actions/sets';
 
@@ -13,17 +15,15 @@ export default async function DashboardPage() {
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-6">
       <div className="flex items-center justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-3">
+          <RecallLogo size={36} />
           <h1 className="text-3xl font-bold">Recall</h1>
-          <p className="text-muted-foreground">Your spaced repetition sets</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" asChild>
             <Link href="/settings">Settings</Link>
           </Button>
-          <Button asChild>
-            <Link href="/study">Study</Link>
-          </Button>
+          <StudyButton />
         </div>
       </div>
 
