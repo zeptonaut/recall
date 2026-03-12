@@ -68,9 +68,13 @@ export function StudySelectionCard({
             <Badge variant="secondary">
               {cardCount} {cardCount === 1 ? 'card' : 'cards'}
             </Badge>
-            <Badge variant={dueCount > 0 ? 'default' : 'outline'}>
-              {dueCount} due
-            </Badge>
+            {dueCount > 0 ? (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                {dueCount} due
+              </Badge>
+            ) : (
+              <Badge variant="outline">{dueCount} due</Badge>
+            )}
           </div>
 
           <ActivityChart data={activity} />

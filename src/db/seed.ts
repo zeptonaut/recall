@@ -22,14 +22,14 @@ type SeedCard = {
   lapses?: number;
   due?: Date;
   lastReview?: Date | null;
-  reviewLog?: {
+  reviewLogs?: {
     rating: 1 | 2 | 3 | 4;
     stateBefore: 'new' | 'learning' | 'review' | 'relearning';
     stateAfter: 'new' | 'learning' | 'review' | 'relearning';
     reviewedAt: Date;
     elapsedDays: number;
     scheduledDays: number;
-  };
+  }[];
 };
 
 function daysAgo(now: Date, days: number) {
@@ -80,28 +80,26 @@ async function seedSet(
     )
     .returning();
 
-  const reviewLogs = insertedCards
-    .map((card, index) => {
-      const reviewLog = config.cards[index]?.reviewLog;
-      if (!reviewLog) return null;
-      return {
-        cardId: card.id,
-        rating: reviewLog.rating,
-        stateBefore: reviewLog.stateBefore,
-        stateAfter: reviewLog.stateAfter,
-        stabilityBefore: null,
-        stabilityAfter: card.stability,
-        difficultyBefore: null,
-        difficultyAfter: card.difficulty,
-        elapsedDays: reviewLog.elapsedDays,
-        scheduledDays: reviewLog.scheduledDays,
-        reviewedAt: reviewLog.reviewedAt,
-      };
-    })
-    .filter((value): value is NonNullable<typeof value> => value !== null);
+  const allReviewLogs = insertedCards.flatMap((card, index) => {
+    const logs = config.cards[index]?.reviewLogs;
+    if (!logs || logs.length === 0) return [];
+    return logs.map((log) => ({
+      cardId: card.id,
+      rating: log.rating,
+      stateBefore: log.stateBefore,
+      stateAfter: log.stateAfter,
+      stabilityBefore: null,
+      stabilityAfter: card.stability,
+      difficultyBefore: null,
+      difficultyAfter: card.difficulty,
+      elapsedDays: log.elapsedDays,
+      scheduledDays: log.scheduledDays,
+      reviewedAt: log.reviewedAt,
+    }));
+  });
 
-  if (reviewLogs.length > 0) {
-    await db.insert(schema.reviewLogs).values(reviewLogs);
+  if (allReviewLogs.length > 0) {
+    await db.insert(schema.reviewLogs).values(allReviewLogs);
   }
 
   console.log('Created set:', set.title, `(${insertedCards.length} cards)`);
@@ -152,14 +150,11 @@ async function seed() {
           lapses: 0,
           due: new Date(now.getTime() - 30 * 60_000),
           lastReview: new Date(now.getTime() - 90 * 60_000),
-          reviewLog: {
-            rating: 3,
-            stateBefore: 'new',
-            stateAfter: 'learning',
-            reviewedAt: new Date(now.getTime() - 90 * 60_000),
-            elapsedDays: 0,
-            scheduledDays: 0,
-          },
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 6), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'learning', reviewedAt: daysAgo(now, 5), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: new Date(now.getTime() - 90 * 60_000), elapsedDays: 0, scheduledDays: 0 },
+          ],
         },
         {
           prompt: 'What is the process by which plants make food?',
@@ -175,14 +170,12 @@ async function seed() {
           lapses: 1,
           due: daysFromNow(now, 2),
           lastReview: daysAgo(now, 4),
-          reviewLog: {
-            rating: 3,
-            stateBefore: 'review',
-            stateAfter: 'review',
-            reviewedAt: daysAgo(now, 4),
-            elapsedDays: 4,
-            scheduledDays: 6,
-          },
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 9), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 8), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 3, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 6), elapsedDays: 2, scheduledDays: 3 },
+            { rating: 3, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 4), elapsedDays: 4, scheduledDays: 6 },
+          ],
         },
         {
           prompt: 'What is the basic unit of life?',
@@ -197,15 +190,13 @@ async function seed() {
           reps: 11,
           lapses: 0,
           due: daysFromNow(now, 14),
-          lastReview: daysAgo(now, 10),
-          reviewLog: {
-            rating: 4,
-            stateBefore: 'review',
-            stateAfter: 'review',
-            reviewedAt: daysAgo(now, 10),
-            elapsedDays: 10,
-            scheduledDays: 24,
-          },
+          lastReview: daysAgo(now, 3),
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 10), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 9), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 4, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 7), elapsedDays: 2, scheduledDays: 4 },
+            { rating: 4, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 3), elapsedDays: 4, scheduledDays: 10 },
+          ],
         },
         {
           prompt: 'What gas do humans exhale?',
@@ -221,14 +212,14 @@ async function seed() {
           lapses: 3,
           due: new Date(now.getTime() - 2 * HOUR_MS),
           lastReview: daysAgo(now, 1),
-          reviewLog: {
-            rating: 1,
-            stateBefore: 'review',
-            stateAfter: 'relearning',
-            reviewedAt: daysAgo(now, 1),
-            elapsedDays: 1,
-            scheduledDays: 1,
-          },
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 8), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 7), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 2, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 5), elapsedDays: 2, scheduledDays: 3 },
+            { rating: 1, stateBefore: 'review', stateAfter: 'relearning', reviewedAt: daysAgo(now, 3), elapsedDays: 2, scheduledDays: 4 },
+            { rating: 3, stateBefore: 'relearning', stateAfter: 'review', reviewedAt: daysAgo(now, 2), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 1, stateBefore: 'review', stateAfter: 'relearning', reviewedAt: daysAgo(now, 1), elapsedDays: 1, scheduledDays: 1 },
+          ],
         },
         {
           prompt: 'Which blood cells carry oxygen?',
@@ -244,14 +235,12 @@ async function seed() {
           lapses: 0,
           due: new Date(now.getTime() - 6 * HOUR_MS),
           lastReview: daysAgo(now, 2),
-          reviewLog: {
-            rating: 2,
-            stateBefore: 'review',
-            stateAfter: 'review',
-            reviewedAt: daysAgo(now, 2),
-            elapsedDays: 2,
-            scheduledDays: 4,
-          },
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 7), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 6), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 2, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 4), elapsedDays: 2, scheduledDays: 3 },
+            { rating: 2, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 2), elapsedDays: 2, scheduledDays: 4 },
+          ],
         },
       ],
     });
@@ -279,14 +268,10 @@ async function seed() {
           lapses: 0,
           due: new Date(now.getTime() - 10 * 60_000),
           lastReview: new Date(now.getTime() - 50 * 60_000),
-          reviewLog: {
-            rating: 3,
-            stateBefore: 'learning',
-            stateAfter: 'learning',
-            reviewedAt: new Date(now.getTime() - 50 * 60_000),
-            elapsedDays: 0,
-            scheduledDays: 0,
-          },
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 5), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'learning', reviewedAt: new Date(now.getTime() - 50 * 60_000), elapsedDays: 0, scheduledDays: 0 },
+          ],
         },
         {
           prompt: '25 + 17',
@@ -302,14 +287,13 @@ async function seed() {
           lapses: 1,
           due: daysFromNow(now, 1),
           lastReview: daysAgo(now, 3),
-          reviewLog: {
-            rating: 3,
-            stateBefore: 'review',
-            stateAfter: 'review',
-            reviewedAt: daysAgo(now, 3),
-            elapsedDays: 3,
-            scheduledDays: 5,
-          },
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 9), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 8), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 1, stateBefore: 'review', stateAfter: 'relearning', reviewedAt: daysAgo(now, 6), elapsedDays: 2, scheduledDays: 3 },
+            { rating: 3, stateBefore: 'relearning', stateAfter: 'review', reviewedAt: daysAgo(now, 5), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 3, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 3), elapsedDays: 3, scheduledDays: 5 },
+          ],
         },
         {
           prompt: '48 + 36',
@@ -324,15 +308,13 @@ async function seed() {
           reps: 16,
           lapses: 0,
           due: daysFromNow(now, 20),
-          lastReview: daysAgo(now, 15),
-          reviewLog: {
-            rating: 4,
-            stateBefore: 'review',
-            stateAfter: 'review',
-            reviewedAt: daysAgo(now, 15),
-            elapsedDays: 15,
-            scheduledDays: 30,
-          },
+          lastReview: daysAgo(now, 4),
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 10), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 9), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 4, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 7), elapsedDays: 2, scheduledDays: 5 },
+            { rating: 4, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 4), elapsedDays: 3, scheduledDays: 10 },
+          ],
         },
         {
           prompt: '99 + 1',
@@ -348,14 +330,14 @@ async function seed() {
           lapses: 4,
           due: new Date(now.getTime() - HOUR_MS),
           lastReview: new Date(now.getTime() - 5 * HOUR_MS),
-          reviewLog: {
-            rating: 1,
-            stateBefore: 'review',
-            stateAfter: 'relearning',
-            reviewedAt: new Date(now.getTime() - 5 * HOUR_MS),
-            elapsedDays: 0,
-            scheduledDays: 1,
-          },
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 8), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 7), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 1, stateBefore: 'review', stateAfter: 'relearning', reviewedAt: daysAgo(now, 5), elapsedDays: 2, scheduledDays: 3 },
+            { rating: 3, stateBefore: 'relearning', stateAfter: 'review', reviewedAt: daysAgo(now, 4), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 1, stateBefore: 'review', stateAfter: 'relearning', reviewedAt: daysAgo(now, 2), elapsedDays: 2, scheduledDays: 3 },
+            { rating: 1, stateBefore: 'review', stateAfter: 'relearning', reviewedAt: new Date(now.getTime() - 5 * HOUR_MS), elapsedDays: 0, scheduledDays: 1 },
+          ],
         },
         {
           prompt: '125 + 75',
@@ -370,16 +352,26 @@ async function seed() {
           reps: 7,
           lapses: 1,
           due: daysFromNow(now, 4),
-          lastReview: daysAgo(now, 6),
-          reviewLog: {
-            rating: 3,
-            stateBefore: 'review',
-            stateAfter: 'review',
-            reviewedAt: daysAgo(now, 6),
-            elapsedDays: 6,
-            scheduledDays: 10,
-          },
+          lastReview: daysAgo(now, 1),
+          reviewLogs: [
+            { rating: 3, stateBefore: 'new', stateAfter: 'learning', reviewedAt: daysAgo(now, 9), elapsedDays: 0, scheduledDays: 0 },
+            { rating: 3, stateBefore: 'learning', stateAfter: 'review', reviewedAt: daysAgo(now, 8), elapsedDays: 0, scheduledDays: 1 },
+            { rating: 3, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 6), elapsedDays: 2, scheduledDays: 4 },
+            { rating: 3, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 3), elapsedDays: 3, scheduledDays: 5 },
+            { rating: 3, stateBefore: 'review', stateAfter: 'review', reviewedAt: daysAgo(now, 1), elapsedDays: 2, scheduledDays: 4 },
+          ],
         },
+      ],
+    });
+
+    await seedSet(db, user.id, {
+      title: 'World Capitals',
+      description: 'Capital cities of countries around the world.',
+      cards: [
+        { prompt: 'What is the capital of Japan?', response: 'Tokyo', position: 0 },
+        { prompt: 'What is the capital of Brazil?', response: 'Brasília', position: 1 },
+        { prompt: 'What is the capital of Australia?', response: 'Canberra', position: 2 },
+        { prompt: 'What is the capital of Egypt?', response: 'Cairo', position: 3 },
       ],
     });
 

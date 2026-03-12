@@ -5,15 +5,23 @@ export function ActivityChart({ data }: { data: DayActivity[] }) {
   const total = data.reduce((sum, d) => sum + d.review + d.learning + d.new, 0);
   if (total === 0) return null;
 
-  // Trim leading empty days so the chart starts with the first active day
-  let startIdx = 0;
-  while (startIdx < data.length && data[startIdx].review + data[startIdx].learning + data[startIdx].new === 0) {
-    startIdx++;
+  // Find the first active day — everything before it is leading whitespace
+  let firstActiveIdx = 0;
+  while (firstActiveIdx < data.length && data[firstActiveIdx].review + data[firstActiveIdx].learning + data[firstActiveIdx].new === 0) {
+    firstActiveIdx++;
   }
-  const trimmed = data.slice(startIdx);
-  if (trimmed.length === 0) return null;
+  if (firstActiveIdx >= data.length) return null;
 
-  const max = Math.max(...trimmed.map((d) => d.review + d.learning + d.new));
+  const activeSlice = data.slice(firstActiveIdx);
+  const max = Math.max(...activeSlice.map((d) => d.review + d.learning + d.new));
+
+  // Build column sizes: leading empty days get 1fr (whitespace on left),
+  // intermediate empty days get a fraction so active bars stay close but not crammed
+  const columns = data.map((d, i) => {
+    const dayTotal = d.review + d.learning + d.new;
+    if (dayTotal > 0) return '1fr';
+    return i < firstActiveIdx ? '1fr' : '0.4fr';
+  }).join(' ');
 
   return (
     <div className="space-y-1.5">
@@ -23,11 +31,11 @@ export function ActivityChart({ data }: { data: DayActivity[] }) {
         <div
           className="relative grid items-end h-12"
           style={{
-            gridTemplateColumns: `repeat(${trimmed.length}, 1fr)`,
+            gridTemplateColumns: columns,
             gap: '2px',
           }}
         >
-          {trimmed.map((day, i) => {
+          {data.map((day, i) => {
             const dayTotal = day.review + day.learning + day.new;
             if (dayTotal === 0) {
               return <div key={i} />;
@@ -37,9 +45,10 @@ export function ActivityChart({ data }: { data: DayActivity[] }) {
             return (
               <div key={i} className="flex justify-center h-full items-end">
                 <div
-                  className="w-1.5 flex flex-col overflow-hidden rounded-t-[1.5px]"
+                  className="w-1.5 flex flex-col-reverse overflow-hidden rounded-t-[1.5px]"
                   style={{ height: `${heightPct}%`, minHeight: '4px' }}
                 >
+                  {/* Green (mastered/review) at the bottom, then learning, then new on top */}
                   {day.review > 0 && (
                     <div
                       className="bg-emerald-400 dark:bg-emerald-500"
@@ -64,7 +73,6 @@ export function ActivityChart({ data }: { data: DayActivity[] }) {
           })}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">{total} reviews</p>
     </div>
   );
 }

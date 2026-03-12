@@ -19,9 +19,12 @@ async function getSetActivity(setId: string, days: number = 28) {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
+  // Use the server's local timezone so days align with the user's perspective
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   const rows = await db
     .select({
-      day: sql<string>`date(${reviewLogs.reviewedAt} at time zone 'UTC')`.as('day'),
+      day: sql<string>`date(${reviewLogs.reviewedAt} at time zone ${tz})`.as('day'),
       stateAfter: reviewLogs.stateAfter,
       count: sql<number>`count(*)::int`.as('count'),
     })
@@ -42,11 +45,12 @@ async function getSetActivity(setId: string, days: number = 28) {
     else entry.new += row.count;
   }
 
-  // Fill zero-days for a consistent chart shape
+  // Fill zero-days using locale date strings to match the timezone-aware SQL
+  // Use days + 1 so the range includes both the start date and today
   const result: DayActivity[] = [];
   const d = new Date(since);
-  for (let i = 0; i < days; i++) {
-    const key = d.toISOString().slice(0, 10);
+  for (let i = 0; i <= days; i++) {
+    const key = d.toLocaleDateString('sv-SE'); // yyyy-mm-dd in local tz
     result.push(byDay.get(key) ?? { review: 0, learning: 0, new: 0 });
     d.setDate(d.getDate() + 1);
   }

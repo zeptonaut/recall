@@ -32,32 +32,33 @@ export function SetCard({
   lastStudied,
   activity,
 }: SetCardProps) {
+  const hasActivity = activity.some((d) => d.review + d.learning + d.new > 0);
+
   return (
     <Link href={`/sets/${id}`}>
-      <Card className="h-full min-h-64 cursor-pointer transition-colors hover:bg-muted/50">
+      <Card className="h-full min-h-64 cursor-pointer transition-colors hover:bg-muted/50 flex flex-col">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">{title}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-lg">{title}</CardTitle>
+            {dueCount > 0 && (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 shrink-0">
+                {dueCount} due
+              </Badge>
+            )}
+          </div>
           {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">
-              {cardCount} {cardCount === 1 ? 'card' : 'cards'}
-            </Badge>
-            <Badge variant={dueCount > 0 ? 'default' : 'outline'}>
-              {dueCount} due
-            </Badge>
+        <CardContent className="flex flex-col gap-3 flex-1">
+          {hasActivity && <ActivityChart data={activity} />}
+
+          <div className="flex items-center justify-between mt-auto text-xs text-muted-foreground">
+            <span>{cardCount} {cardCount === 1 ? 'card' : 'cards'}</span>
+            <span>
+              {hasActivity
+                ? `Last reviewed ${new Date(lastStudied!).toLocaleDateString()}`
+                : 'Not yet reviewed'}
+            </span>
           </div>
-
-          <ActivityChart data={activity} />
-
-          {lastStudied ? (
-            <p className="text-xs text-muted-foreground">
-              Last reviewed {new Date(lastStudied).toLocaleDateString()}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">No reviews yet</p>
-          )}
         </CardContent>
       </Card>
     </Link>

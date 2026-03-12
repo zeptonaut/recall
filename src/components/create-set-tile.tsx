@@ -10,7 +10,7 @@ export function CreateSetTile() {
     <CreateSetDialog
       trigger={
         <button type="button" className="h-full w-full text-left">
-          <Card className="h-full min-h-64 cursor-pointer border-dashed transition-colors hover:bg-muted/50">
+          <Card className="h-full min-h-64 cursor-pointer transition-colors hover:bg-muted/50">
             <CardContent className="flex min-h-64 flex-col items-center justify-center gap-4 py-10 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed">
                 <Plus className="h-7 w-7" />
