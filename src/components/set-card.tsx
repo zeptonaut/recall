@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { MasteryBadge } from '@/components/mastery-badge';
+import type { DayActivity } from '@/app/actions/sets';
+import { ActivityChart } from '@/components/activity-chart';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -18,10 +19,10 @@ interface SetCardProps {
     familiar: number;
     mastered: number;
   };
-  averageRetrievability: number | null;
+  activity: DayActivity[];
 }
 
-/** Dashboard tile showing due work, mastery distribution, and recent study activity. */
+/** Dashboard tile showing due work, activity sparkline, and recent study info. */
 export function SetCard({
   id,
   title,
@@ -29,8 +30,7 @@ export function SetCard({
   cardCount,
   dueCount,
   lastStudied,
-  mastery,
-  averageRetrievability,
+  activity,
 }: SetCardProps) {
   return (
     <Link href={`/sets/${id}`}>
@@ -49,18 +49,7 @@ export function SetCard({
             </Badge>
           </div>
 
-          <div className="flex flex-wrap gap-2 text-xs">
-            <MasteryBadge mastery="new" count={mastery.new} />
-            <MasteryBadge mastery="learning" count={mastery.learning} />
-            <MasteryBadge mastery="familiar" count={mastery.familiar} />
-            <MasteryBadge mastery="mastered" count={mastery.mastered} />
-          </div>
-
-          {averageRetrievability !== null ? (
-            <p className="text-xs text-muted-foreground">
-              Avg recall probability {Math.round(averageRetrievability * 100)}%
-            </p>
-          ) : null}
+          <ActivityChart data={activity} />
 
           {lastStudied ? (
             <p className="text-xs text-muted-foreground">

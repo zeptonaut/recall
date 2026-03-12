@@ -1,15 +1,60 @@
 'use server';
 
-import { eq } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
-import { cards, sets, users } from '@/db/schema';
+import { cards, reviewLogs, sets, users } from '@/db/schema';
 import { getMasteryTier, getRetrievability } from '@/lib/fsrs';
-import { computeSetStudyStats, ensureUserSettings, getAverageRetrievability } from '@/lib/study-store';
+import { computeSetStudyStats, ensureUserSettings } from '@/lib/study-store';
+
+/** Fetch daily review counts for a set over the last N days. */
+export interface DayActivity {
+  review: number;
+  learning: number;
+  new: number;
+}
+
+/** Fetch daily review counts by state for a set over the last N days. */
+async function getSetActivity(setId: string, days: number = 28) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const rows = await db
+    .select({
+      day: sql<string>`date(${reviewLogs.reviewedAt} at time zone 'UTC')`.as('day'),
+      stateAfter: reviewLogs.stateAfter,
+      count: sql<number>`count(*)::int`.as('count'),
+    })
+    .from(reviewLogs)
+    .innerJoin(cards, eq(reviewLogs.cardId, cards.id))
+    .where(and(eq(cards.setId, setId), gte(reviewLogs.reviewedAt, since)))
+    .groupBy(sql`day`, reviewLogs.stateAfter)
+    .orderBy(sql`day`);
+
+  // Build a lookup: day -> { review, learning, new }
+  const byDay = new Map<string, DayActivity>();
+  for (const row of rows) {
+    const key = row.day;
+    if (!byDay.has(key)) byDay.set(key, { review: 0, learning: 0, new: 0 });
+    const entry = byDay.get(key)!;
+    if (row.stateAfter === 'review') entry.review += row.count;
+    else if (row.stateAfter === 'learning' || row.stateAfter === 'relearning') entry.learning += row.count;
+    else entry.new += row.count;
+  }
+
+  // Fill zero-days for a consistent chart shape
+  const result: DayActivity[] = [];
+  const d = new Date(since);
+  for (let i = 0; i < days; i++) {
+    const key = d.toISOString().slice(0, 10);
+    result.push(byDay.get(key) ?? { review: 0, learning: 0, new: 0 });
+    d.setDate(d.getDate() + 1);
+  }
+  return result;
+}
 
 /** List all sets for the default user with scheduler-native stats */
 export async function getSets() {
-  const settings = await ensureUserSettings();
   const result = await db.query.sets.findMany({
     with: {
       cards: true,
@@ -19,7 +64,10 @@ export async function getSets() {
 
   return Promise.all(
     result.map(async (set) => {
-      const stats = await computeSetStudyStats(set.id);
+      const [stats, activity] = await Promise.all([
+        computeSetStudyStats(set.id),
+        getSetActivity(set.id),
+      ]);
       return {
         id: set.id,
         title: set.title,
@@ -30,7 +78,7 @@ export async function getSets() {
         dueCount: stats.dueNowCount,
         mastery: stats.mastery,
         lastStudied: stats.lastReviewed,
-        averageRetrievability: await getAverageRetrievability(set.id, settings),
+        activity,
       };
     })
   );

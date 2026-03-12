@@ -9,6 +9,7 @@ import { StudySession } from '@/components/study-session';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import type { DrillMode, StudyQueueItem } from '@/lib/fsrs';
+import type { DayActivity } from '@/app/actions/sets';
 
 const STUDY_SELECTION_STORAGE_KEY = 'recall:last-selected-study-sets';
 
@@ -25,7 +26,7 @@ interface SetSummary {
     familiar: number;
     mastered: number;
   };
-  averageRetrievability: number | null;
+  activity: DayActivity[];
 }
 
 interface DrillModeOption {
@@ -146,7 +147,7 @@ export function StudyPageClient({ sets, drillModes }: StudyPageClientProps) {
                 dueCount={set.dueCount}
                 mastery={set.mastery}
                 lastStudied={set.lastStudied}
-                averageRetrievability={set.averageRetrievability}
+                activity={set.activity}
                 selected={selectedSetIds.includes(set.id)}
                 onToggle={() => toggleSetSelection(set.id)}
               />

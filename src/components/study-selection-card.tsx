@@ -1,7 +1,8 @@
 'use client';
 
 import { CheckCircle2 } from 'lucide-react';
-import { MasteryBadge } from '@/components/mastery-badge';
+import type { DayActivity } from '@/app/actions/sets';
+import { ActivityChart } from '@/components/activity-chart';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -18,7 +19,7 @@ interface StudySelectionCardProps {
     familiar: number;
     mastered: number;
   };
-  averageRetrievability: number | null;
+  activity: DayActivity[];
   selected: boolean;
   onToggle: () => void;
 }
@@ -30,8 +31,7 @@ export function StudySelectionCard({
   cardCount,
   dueCount,
   lastStudied,
-  mastery,
-  averageRetrievability,
+  activity,
   selected,
   onToggle,
 }: StudySelectionCardProps) {
@@ -73,18 +73,7 @@ export function StudySelectionCard({
             </Badge>
           </div>
 
-          <div className="flex flex-wrap gap-2 text-xs">
-            <MasteryBadge mastery="new" count={mastery.new} />
-            <MasteryBadge mastery="learning" count={mastery.learning} />
-            <MasteryBadge mastery="familiar" count={mastery.familiar} />
-            <MasteryBadge mastery="mastered" count={mastery.mastered} />
-          </div>
-
-          {averageRetrievability !== null ? (
-            <p className="text-xs text-muted-foreground">
-              Avg recall probability {Math.round(averageRetrievability * 100)}%
-            </p>
-          ) : null}
+          <ActivityChart data={activity} />
 
           {lastStudied ? (
             <p className="text-xs text-muted-foreground">

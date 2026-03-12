@@ -38,7 +38,7 @@ export default async function DashboardPage() {
             dueCount={set.dueCount}
             mastery={set.mastery}
             lastStudied={set.lastStudied}
-            averageRetrievability={set.averageRetrievability}
+            activity={set.activity}
           />
         ))}
         <CreateSetTile />
