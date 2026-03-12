@@ -1,27 +1,43 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, useTransition } from 'react';
+
 import { CardContentDisplay } from '@/components/card-content-display';
-import { Card, CardContent } from '@/components/ui/card';
+
 import { DifficultyButtons } from '@/components/difficulty-buttons';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { updateCard } from '@/app/actions/cards';
 import { getReviewPreview } from '@/app/actions/study';
 import type { ReviewPreview, ReviewType, StudyQueueItem } from '@/lib/fsrs';
+
+export interface StudyCardHandle {
+  startEditing: () => void;
+}
 
 interface StudyCardProps {
   card: StudyQueueItem;
   reviewType: ReviewType;
   onRate: (rating: 1 | 2 | 3 | 4, elapsedMs: number) => Promise<void>;
+  onPhaseChange?: (phase: CardPhase) => void;
+  ref?: React.Ref<StudyCardHandle>;
 }
 
 type CardPhase = 'prompt' | 'answer';
 
 /** Flip-style flashcard: reveal the answer, then rate recall with FSRS. */
-export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
+export function StudyCard({ card, reviewType, onRate, onPhaseChange, ref }: StudyCardProps) {
   const [phase, setPhase] = useState<CardPhase>('prompt');
   const [preview, setPreview] = useState<ReviewPreview | null>(null);
   const [submitting, startSubmitting] = useTransition();
   const [loadingPreview, startLoadingPreview] = useTransition();
   const startedAtRef = useRef<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editPrompt, setEditPrompt] = useState(card.prompt);
+  const [editResponse, setEditResponse] = useState(card.response);
+  const [saving, startSaving] = useTransition();
+  const [displayPrompt, setDisplayPrompt] = useState(card.prompt);
+  const [displayResponse, setDisplayResponse] = useState(card.response);
 
   const loadPreview = useCallback(async () => {
     const nextPreview = await getReviewPreview(card.id, reviewType);
@@ -34,14 +50,22 @@ export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
   }
 
   const revealAnswer = useCallback(() => {
-    setPhase((current) => (current === 'prompt' ? 'answer' : current));
-  }, []);
+    setPhase((current) => {
+      if (current === 'prompt') {
+        onPhaseChange?.('answer');
+        return 'answer';
+      }
+      return current;
+    });
+  }, [onPhaseChange]);
 
   const submitRating = useCallback((rating: 1 | 2 | 3 | 4) => {
     startSubmitting(async () => {
       await onRate(rating, getElapsedMs());
     });
   }, [onRate, startSubmitting]);
+
+  useImperativeHandle(ref, () => ({ startEditing }));
 
   useEffect(() => {
     startedAtRef.current = Date.now();
@@ -54,8 +78,32 @@ export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
     });
   }, [loadPreview, phase]);
 
+  function startEditing() {
+    setEditPrompt(displayPrompt);
+    setEditResponse(displayResponse);
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    setEditing(false);
+  }
+
+  function saveEdit() {
+    const trimmedPrompt = editPrompt.trim();
+    const trimmedResponse = editResponse.trim();
+    if (!trimmedPrompt || !trimmedResponse) return;
+    startSaving(async () => {
+      await updateCard(card.id, trimmedPrompt, trimmedResponse);
+      setDisplayPrompt(trimmedPrompt);
+      setDisplayResponse(trimmedResponse);
+      setEditing(false);
+    });
+  }
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (editing) return;
+
       if (phase === 'prompt' && (event.key === ' ' || event.code === 'Space')) {
         event.preventDefault();
         revealAnswer();
@@ -70,50 +118,78 @@ export function StudyCard({ card, reviewType, onRate }: StudyCardProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, revealAnswer, submitRating, submitting]);
+  }, [editing, phase, revealAnswer, submitRating, submitting]);
 
   return (
     <div>
-      <Card
-        className={`min-h-[58dvh] w-full rounded-xl sm:min-h-[20rem] ${
-          phase === 'prompt' ? 'cursor-pointer select-none' : ''
-        }`}
+      <div
+        className={`w-full ${phase === 'prompt' ? 'cursor-pointer select-none' : ''}`}
         onClick={phase === 'prompt' ? revealAnswer : undefined}
         aria-label={phase === 'prompt' ? 'Reveal answer' : undefined}
       >
-        <CardContent className="flex min-h-[58dvh] items-center justify-center py-10 sm:min-h-[20rem] sm:py-12">
-          <div className="w-full max-w-3xl -translate-y-[6%] space-y-6 text-center">
-            <div>
-              <CardContentDisplay
-                content={card.prompt}
-                className="space-y-4"
-                imageClassName="mx-auto max-h-96"
-                textClassName="text-3xl font-semibold sm:text-4xl"
-              />
-            </div>
-
-            {phase === 'answer' ? (
-              <div className="space-y-4 border-t pt-6">
+        <div className="flex min-h-[40dvh] items-center justify-center px-4 py-10 sm:min-h-[18rem] sm:py-14">
+          <div className="w-full max-w-lg text-center">
+            {editing ? (
+              <div className="space-y-4 text-left">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-muted-foreground">Front</label>
+                  <Textarea
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    autoFocus
+                    className="min-h-24 text-base"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-muted-foreground">Back</label>
+                  <Textarea
+                    value={editResponse}
+                    onChange={(e) => setEditResponse(e.target.value)}
+                    className="min-h-24 text-base"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={cancelEditing} disabled={saving}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={saveEdit} disabled={saving || !editPrompt.trim() || !editResponse.trim()}>
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
                 <div>
                   <CardContentDisplay
-                    content={card.response}
+                    content={displayPrompt}
                     className="space-y-4"
-                    imageClassName="mx-auto max-h-80"
-                    textClassName="text-xl font-medium"
+                    imageClassName="mx-auto max-h-96"
+                    textClassName={`-tracking-[0.01em] ${phase === 'answer' ? 'text-lg font-medium text-foreground/40 sm:text-xl' : 'text-3xl font-semibold sm:text-5xl'}`}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-center text-sm text-muted-foreground">
-                    Rate how well you recalled it
-                  </p>
-                  <DifficultyButtons onSelect={submitRating} disabled={submitting || loadingPreview} previews={preview} />
-                </div>
-              </div>
-            ) : null}
+                {phase === 'answer' ? (
+                  <div className="mt-8 space-y-8">
+                    <div>
+                      <CardContentDisplay
+                        content={displayResponse}
+                        className="space-y-4"
+                        imageClassName="mx-auto max-h-80"
+                        textClassName="text-3xl font-bold -tracking-[0.02em] sm:text-5xl"
+                      />
+                    </div>
+
+                    <div>
+                      <DifficultyButtons onSelect={submitRating} disabled={submitting || loadingPreview} previews={preview} />
+                    </div>
+
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

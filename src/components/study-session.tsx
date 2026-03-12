@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, useTransition } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { useMemo, useRef, useState, useTransition } from 'react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 import { getDrillQueue, getDueStudyQueue, submitReview } from '@/app/actions/study';
-import { StudyCard } from '@/components/study-card';
+import { StudyCard, type StudyCardHandle } from '@/components/study-card';
 import { StudySummary } from '@/components/study-summary';
-import { Badge } from '@/components/ui/badge';
+
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { isScheduledCardDueNow, type DrillMode, type StudyQueueItem } from '@/lib/fsrs';
@@ -47,6 +47,8 @@ export function StudySession({
   const [queue, setQueue] = useState<StudyQueueItem[]>(initialCards);
   const [results, setResults] = useState<StudyResult[]>([]);
   const [isLoadingDrill, startLoadingDrill] = useTransition();
+  const [cardPhase, setCardPhase] = useState<'prompt' | 'answer'>('prompt');
+  const studyCardRef = useRef<StudyCardHandle>(null);
 
   const currentCard = queue[0] ?? null;
   const totalForProgress = Math.max(initialCards.length, results.length + queue.length, 1);
@@ -59,6 +61,7 @@ export function StudySession({
 
   async function handleRate(rating: 1 | 2 | 3 | 4, elapsedMs: number) {
     if (!currentCard) return;
+    setCardPhase('prompt');
 
     const hadSingleCardLeft = queue.length === 1;
     const { card: reviewedCard } = await submitReview({
@@ -118,14 +121,14 @@ export function StudySession({
   const showSummary = !currentCard;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         {onBack ? (
           <Button
             type="button"
             variant="ghost"
             onClick={onBack}
-            className="h-auto px-0 text-sm text-muted-foreground hover:bg-transparent hover:text-foreground"
+            className="h-auto !px-0 text-sm text-muted-foreground hover:bg-transparent hover:text-foreground"
           >
             <ArrowLeft className="mr-1 h-4 w-4" />
             {backLabel}
@@ -142,29 +145,35 @@ export function StudySession({
           <div />
         )}
 
-        <div className="text-right">
-          <p className="text-sm font-medium">{studyLabel}</p>
-          <p className="text-xs text-muted-foreground capitalize">{mode} study</p>
-        </div>
+        {cardPhase === 'answer' ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto !px-0 text-muted-foreground/50 hover:bg-transparent hover:text-muted-foreground"
+            onClick={() => studyCardRef.current?.startEditing()}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit card
+          </Button>
+        ) : <div />}
       </div>
 
       {!showSummary ? (
         <>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm text-muted-foreground">
+          <div className="space-y-1">
+            <Progress value={progress} className="h-[3px]" />
+            <div className="flex justify-between text-xs text-muted-foreground/50">
               <span>{results.length} reviewed</span>
               <span>{remainingLabel}</span>
             </div>
-            <Progress value={progress} />
           </div>
 
           {showSetTitle ? (
-            <Badge variant="outline" className="w-fit">
-              {currentCard.setTitle}
-            </Badge>
+            <p className="text-center text-[11px] text-muted-foreground/40">{currentCard.setTitle}</p>
           ) : null}
 
-          <StudyCard key={`${mode}:${currentCard.id}`} card={currentCard} reviewType={mode} onRate={handleRate} />
+          <StudyCard ref={studyCardRef} key={`${mode}:${currentCard.id}`} card={currentCard} reviewType={mode} onRate={handleRate} onPhaseChange={setCardPhase} />
         </>
       ) : (
         <StudySummary

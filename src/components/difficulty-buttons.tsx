@@ -1,7 +1,7 @@
 'use client';
 
 import { ShortcutTooltip } from '@/components/shortcut-tooltip';
-import { Button } from '@/components/ui/button';
+
 import type { ReviewPreview } from '@/lib/fsrs';
 
 interface DifficultyButtonsProps {
@@ -11,27 +11,29 @@ interface DifficultyButtonsProps {
 }
 
 const DIFFICULTY_OPTIONS = [
-  { value: 1, label: 'Again', variant: 'destructive' as const, previewKey: 'again' as const },
-  { value: 2, label: 'Hard', variant: 'outline' as const, previewKey: 'hard' as const },
-  { value: 3, label: 'Good', variant: 'secondary' as const, previewKey: 'good' as const },
-  { value: 4, label: 'Easy', variant: 'default' as const, previewKey: 'easy' as const },
+  { value: 1, label: 'Again', previewKey: 'again' as const },
+  { value: 2, label: 'Hard', previewKey: 'hard' as const },
+  { value: 3, label: 'Good', previewKey: 'good' as const },
+  { value: 4, label: 'Easy', previewKey: 'easy' as const },
 ];
 
-/** Four FSRS rating buttons with optional interval previews. */
+/** Four FSRS rating buttons styled as a single cohesive segmented control. */
 export function DifficultyButtons({ onSelect, disabled, previews }: DifficultyButtonsProps) {
   return (
-    <div className="grid gap-2 sm:grid-cols-4">
-      {DIFFICULTY_OPTIONS.map((opt) => (
+    <div className="inline-flex w-full items-stretch rounded-xl bg-muted/40 p-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.03]">
+      {DIFFICULTY_OPTIONS.map((opt, i) => (
         <ShortcutTooltip key={opt.value} label={opt.label} shortcuts={String(opt.value)}>
-          <Button
-            variant={opt.variant}
+          <button
+            type="button"
             onClick={() => onSelect(opt.value as 1 | 2 | 3 | 4)}
             disabled={disabled}
-            className="h-auto min-h-16 flex-col py-3"
+            className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-lg px-2 py-2.5 transition-all hover:bg-background hover:shadow-sm active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 sm:px-4 sm:py-3 ${
+              i < DIFFICULTY_OPTIONS.length - 1 ? 'after:absolute after:right-0 after:top-1/2 after:h-4 after:w-px after:-translate-y-1/2 after:bg-black/[0.06]' : ''
+            }`}
           >
-            <span>{opt.label}</span>
-            <span className="text-xs opacity-80">{previews?.[opt.previewKey] ?? '...'}</span>
-          </Button>
+            <span className="text-sm font-medium -tracking-[0.01em]">{opt.label}</span>
+            <span className="text-[11px] text-muted-foreground/40">{previews?.[opt.previewKey] ?? '...'}</span>
+          </button>
         </ShortcutTooltip>
       ))}
     </div>

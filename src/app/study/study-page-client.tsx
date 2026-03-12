@@ -161,7 +161,7 @@ export function StudyPageClient({ sets, drillModes }: StudyPageClientProps) {
           studyLabel={studyLabel}
           initialCards={sessionCards}
           drillModes={drillModes}
-          backLabel="Change selected sets"
+          backLabel="Back"
           onBack={() => setSessionCards(null)}
           onReturnToSelection={() => setSessionCards(null)}
         />
