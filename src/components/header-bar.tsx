@@ -13,7 +13,7 @@ interface HeaderBarProps {
 /** Shared top bar with a back link on the left and contextual actions on the right. */
 export function HeaderBar({ backHref, backLabel, actions }: HeaderBarProps) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex items-center justify-between gap-4">
       <Link
         href={backHref}
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
