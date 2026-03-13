@@ -214,11 +214,11 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
             <>
               <Button variant="secondary" asChild>
                 <Link href={`/sets/${set.id}`}>
-                  <X className="mr-1 h-4 w-4" /> Cancel
+                  <X className="h-4 w-4" /> Cancel
                 </Link>
               </Button>
               <Button onClick={handleSave} disabled={loading}>
-                <Check className="mr-1 h-4 w-4" /> Save
+                <Check className="h-4 w-4" /> Save
               </Button>
             </>
           )}
