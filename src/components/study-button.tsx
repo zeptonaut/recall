@@ -30,7 +30,7 @@ export function StudyButton() {
 
   return (
     <ShortcutTooltip label="Study" shortcuts="S">
-      <Button size="sm" asChild>
+      <Button asChild>
         <Link href="/study">Study</Link>
       </Button>
     </ShortcutTooltip>
