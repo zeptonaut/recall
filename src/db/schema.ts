@@ -96,6 +96,7 @@ export const userSettings = pgTable('user_settings', {
   enableShortTerm: boolean('enable_short_term').default(true).notNull(),
   fsrsWeights: doublePrecision('fsrs_weights').array(),
   maxNewCardsPerDay: integer('max_new_cards_per_day').default(20).notNull(),
+  maxNewCardFailsPerDay: integer('max_new_card_fails_per_day').default(3).notNull(),
   maxReviewsPerDay: integer('max_reviews_per_day').default(200).notNull(),
   learningSteps: text('learning_steps')
     .array()
@@ -111,6 +112,16 @@ export const userSettings = pgTable('user_settings', {
   updatedAt: timestamptz('updated_at').defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('user_settings_user_id_idx').on(table.userId),
+]);
+
+export const setSettings = pgTable('set_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  setId: uuid('set_id').references(() => sets.id, { onDelete: 'cascade' }).notNull(),
+  maxNewCardFailsPerDay: integer('max_new_card_fails_per_day'),
+  createdAt: timestamptz('created_at').defaultNow().notNull(),
+  updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('set_settings_set_id_idx').on(table.setId),
 ]);
 
 export const dailyStats = pgTable('daily_stats', {
@@ -212,6 +223,11 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const setsRelations = relations(sets, ({ one, many }) => ({
   user: one(users, { fields: [sets.userId], references: [users.id] }),
   cards: many(cards),
+  settings: one(setSettings),
+}));
+
+export const setSettingsRelations = relations(setSettings, ({ one }) => ({
+  set: one(sets, { fields: [setSettings.setId], references: [sets.id] }),
 }));
 
 export const cardsRelations = relations(cards, ({ one, many }) => ({

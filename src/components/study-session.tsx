@@ -62,7 +62,7 @@ export function StudySession({
     setCardPhase('prompt');
 
     const hadSingleCardLeft = queue.length === 1;
-    const { card: reviewedCard } = await submitReview({
+    const { card: reviewedCard, newCardsExhausted } = await submitReview({
       cardId: currentCard.id,
       rating,
       reviewType: mode,
@@ -87,10 +87,11 @@ export function StudySession({
 
     setQueue((existing) => {
       const [, ...remaining] = existing;
-      if (shouldReplayReviewedCard) {
-        return [...remaining, reviewedCard];
+      let next = shouldReplayReviewedCard ? [...remaining, reviewedCard] : remaining;
+      if (newCardsExhausted) {
+        next = next.filter((c) => c.state !== 'new');
       }
-      return remaining;
+      return next;
     });
 
     if (hadSingleCardLeft && !shouldReplayReviewedCard) {
