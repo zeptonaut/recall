@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Query the Recall readonly Postgres database via psql.
+# Usage:
+#   recall-db                    # interactive psql session
+#   recall-db "SELECT ..."       # run a single query
+#   recall-db -f file.sql        # run a SQL file
+
+set -euo pipefail
+
+if [[ -z "${RECALL_READONLY:-}" ]]; then
+  echo "Error: RECALL_READONLY is not set. Add it to ~/.zshrc." >&2
+  exit 1
+fi
+
+if [[ $# -eq 0 ]]; then
+  exec psql "$RECALL_READONLY"
+elif [[ "$1" == "-f" ]]; then
+  exec psql "$RECALL_READONLY" -f "$2"
+else
+  exec psql "$RECALL_READONLY" -c "$*"
+fi
