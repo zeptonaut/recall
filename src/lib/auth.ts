@@ -17,7 +17,15 @@ export const auth = betterAuth({
   }),
   baseURL,
   secret: getRequiredEnv('BETTER_AUTH_SECRET'),
-  trustedOrigins: [baseURL],
+  trustedOrigins: (request) => {
+    const origin = request?.headers?.get('origin');
+    if (!origin) return [];
+    try {
+      const url = new URL(origin);
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return [origin];
+    } catch {}
+    return [];
+  },
   emailAndPassword: {
     enabled: true,
   },

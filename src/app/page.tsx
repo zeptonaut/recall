@@ -22,7 +22,7 @@ export default async function DashboardPage() {
           <h1 className="text-xl font-semibold tracking-tight text-foreground/90">Recall</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
+          <Button variant="ghost" className="text-muted-foreground hover:text-foreground" asChild>
             <Link href="/settings">Settings</Link>
           </Button>
           <StudyButton />
