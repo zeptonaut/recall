@@ -27,6 +27,7 @@ interface SettingsFormProps {
   initialValues: {
     desiredRetention: number;
     maxNewCardsPerDay: number;
+    maxNewCardFailsPerDay: number;
     maxReviewsPerDay: number;
     timezone: string;
     newDayStartHour: number;
@@ -39,6 +40,7 @@ export function SettingsForm({ user, initialValues, initialApiKeys }: SettingsFo
   const [form, setForm] = useState({
     desiredRetention: String(initialValues.desiredRetention),
     maxNewCardsPerDay: String(initialValues.maxNewCardsPerDay),
+    maxNewCardFailsPerDay: String(initialValues.maxNewCardFailsPerDay),
     maxReviewsPerDay: String(initialValues.maxReviewsPerDay),
     timezone: initialValues.timezone,
     newDayStartHour: String(initialValues.newDayStartHour),
@@ -93,6 +95,7 @@ export function SettingsForm({ user, initialValues, initialApiKeys }: SettingsFo
         await updateUserSettings({
           desiredRetention: Number(form.desiredRetention),
           maxNewCardsPerDay: Number(form.maxNewCardsPerDay),
+          maxNewCardFailsPerDay: Number(form.maxNewCardFailsPerDay),
           maxReviewsPerDay: Number(form.maxReviewsPerDay),
           timezone: form.timezone,
           newDayStartHour: Number(form.newDayStartHour),
@@ -217,6 +220,21 @@ export function SettingsForm({ user, initialValues, initialApiKeys }: SettingsFo
                   onChange={(event) => updateField('maxReviewsPerDay', event.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="maxNewCardFailsPerDay">Max new card fails per day</Label>
+              <p className="text-xs text-muted-foreground">
+                Stop showing new cards from a deck after you rate &quot;Again&quot; this many times on new cards in one day. Can be overridden per deck.
+              </p>
+              <Input
+                id="maxNewCardFailsPerDay"
+                type="number"
+                min="0"
+                step="1"
+                value={form.maxNewCardFailsPerDay}
+                onChange={(event) => updateField('maxNewCardFailsPerDay', event.target.value)}
+              />
             </div>
 
             <div className="space-y-2">

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Check, Pencil, Trash2, X } from 'lucide-react';
 import { createCard, deleteCard, updateCard } from '@/app/actions/cards';
+import { updateSetSettings } from '@/app/actions/settings';
 import { deleteSet, updateSet } from '@/app/actions/sets';
 import { CardContentInput } from '@/components/card-content-input';
 import { CardListItem } from '@/components/card-list-item';
@@ -33,6 +34,8 @@ interface SetWithCards {
   id: string;
   title: string;
   description: string | null;
+  maxNewCardFailsPerDay: number | null;
+  userMaxNewCardFailsPerDay: number;
   stats: {
     dueNowCount: number;
     mastery: Record<MasteryTier, number>;
@@ -68,6 +71,9 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
   const [description, setDescription] = useState(set.description ?? '');
   const [loading, setLoading] = useState(false);
   const [cardRows, setCardRows] = useState<EditableCardRow[]>(() => buildEditorRows(set.cards));
+  const [failLimit, setFailLimit] = useState(
+    set.maxNewCardFailsPerDay !== null ? String(set.maxNewCardFailsPerDay) : '',
+  );
   const router = useRouter();
   const isEditRoute = mode === 'edit';
 
@@ -123,7 +129,11 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
       });
       const cardsToCreate = cardRows.filter((row) => row.id === null && isCompleteRow(row));
 
-      await updateSet(set.id, title.trim(), description.trim());
+      const failLimitValue = failLimit.trim() === '' ? null : Number(failLimit);
+      await Promise.all([
+        updateSet(set.id, title.trim(), description.trim()),
+        updateSetSettings(set.id, { maxNewCardFailsPerDay: failLimitValue }),
+      ]);
       await Promise.all(cardsToDelete.map((card) => deleteCard(card.id)));
       await Promise.all(cardsToUpdate.map((row) => updateCard(row.id as string, row.prompt, row.response)));
       for (const row of cardsToCreate) {
@@ -160,7 +170,8 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
     setTitle(set.title);
     setDescription(set.description ?? '');
     setCardRows(buildEditorRows(set.cards));
-  }, [set.cards, set.description, set.title]);
+    setFailLimit(set.maxNewCardFailsPerDay !== null ? String(set.maxNewCardFailsPerDay) : '');
+  }, [set.cards, set.description, set.title, set.maxNewCardFailsPerDay]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -270,6 +281,24 @@ export function SetDetailClient({ set, mode = 'view' }: SetDetailClientProps) {
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Description (optional)"
           />
+          <div className="flex items-center gap-2">
+            <label htmlFor="failLimit" className="text-xs text-muted-foreground whitespace-nowrap">
+              Max new card fails/day
+            </label>
+            <Input
+              id="failLimit"
+              type="number"
+              min="0"
+              step="1"
+              placeholder={String(set.userMaxNewCardFailsPerDay)}
+              value={failLimit}
+              onChange={(e) => setFailLimit(e.target.value)}
+              className="h-7 w-20 text-xs"
+            />
+            {failLimit.trim() === '' ? (
+              <span className="text-xs text-muted-foreground/50">using default</span>
+            ) : null}
+          </div>
         </div>
       ) : (
         <div className="space-y-3">

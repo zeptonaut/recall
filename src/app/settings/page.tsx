@@ -29,6 +29,7 @@ export default async function SettingsPage() {
       initialValues={{
         desiredRetention: settings.desiredRetention,
         maxNewCardsPerDay: settings.maxNewCardsPerDay,
+        maxNewCardFailsPerDay: settings.maxNewCardFailsPerDay,
         maxReviewsPerDay: settings.maxReviewsPerDay,
         timezone: settings.timezone,
         newDayStartHour: settings.newDayStartHour,

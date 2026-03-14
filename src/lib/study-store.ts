@@ -1,7 +1,15 @@
-import { and, desc, eq, inArray, lte, max, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, max, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { cards, dailyStats, reviewLogs, userSettings } from '@/db/schema';
-import { getMasteryTier, getRetrievability, type MasteryTier, type UserSettingsRecord } from '@/lib/fsrs';
+import { cards, dailyStats, reviewLogs, setSettings, userSettings } from '@/db/schema';
+import {
+  getMasteryTier,
+  getRetrievability,
+  getStudyDayWindow,
+  toStudyQueueItem,
+  type MasteryTier,
+  type StudyQueueResult,
+  type UserSettingsRecord,
+} from '@/lib/fsrs';
 
 export interface SetStudyStats {
   totalCards: number;
@@ -127,6 +135,140 @@ export async function computeSetStudyStats(setId: string): Promise<SetStudyStats
     newCount: dueCounts.new,
     lastReviewed,
     mastery,
+  };
+}
+
+/** Subtract blocked new cards from a set's due count when the fail limit is reached. */
+export function applyFailLimitToDueCount(
+  stats: SetStudyStats,
+  fails: number,
+  limit: number,
+): SetStudyStats {
+  if (fails < limit) return stats;
+  return {
+    ...stats,
+    dueNowCount: stats.dueNowCount - stats.newCount,
+    newCount: 0,
+  };
+}
+
+/** Count how many new cards were rated "Again" today, grouped by set. */
+export async function getNewCardFailsPerSet(
+  setIds: string[],
+  studyDayStart: Date,
+  studyDayEnd: Date,
+) {
+  if (setIds.length === 0) return new Map<string, number>();
+
+  const rows = await db
+    .select({
+      setId: cards.setId,
+      count: sql<number>`count(*)::int`.as('count'),
+    })
+    .from(reviewLogs)
+    .innerJoin(cards, eq(reviewLogs.cardId, cards.id))
+    .where(
+      and(
+        inArray(cards.setId, setIds),
+        eq(reviewLogs.rating, 1),
+        eq(reviewLogs.stateBefore, 'new'),
+        eq(reviewLogs.reviewType, 'scheduled'),
+        gte(reviewLogs.reviewedAt, studyDayStart),
+        lte(reviewLogs.reviewedAt, studyDayEnd),
+      ),
+    )
+    .groupBy(cards.setId);
+
+  return new Map(rows.map((r) => [r.setId, r.count]));
+}
+
+/** Get per-set new card fail limits, falling back to the user-level default. */
+export async function getNewCardFailLimits(
+  setIds: string[],
+  userDefault: number,
+) {
+  if (setIds.length === 0) return new Map<string, number>();
+
+  const overrides = await db.query.setSettings.findMany({
+    where: inArray(setSettings.setId, setIds),
+    columns: { setId: true, maxNewCardFailsPerDay: true },
+  });
+
+  const limits = new Map<string, number>();
+  for (const id of setIds) {
+    limits.set(id, userDefault);
+  }
+  for (const override of overrides) {
+    if (override.maxNewCardFailsPerDay !== null) {
+      limits.set(override.setId, override.maxNewCardFailsPerDay);
+    }
+  }
+
+  return limits;
+}
+
+/** Build the study queue for the given sets, applying all daily limits. */
+export async function buildDueStudyQueue(
+  userId: string,
+  setIds: string[],
+  settings: UserSettingsRecord,
+): Promise<StudyQueueResult> {
+  const now = new Date();
+  const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
+  const stats = await getOrCreateDailyStats(userId, studyDay.key);
+
+  const remainingNewBudget = Math.max(0, settings.maxNewCardsPerDay - stats.newCardsCount);
+  const remainingReviewBudget = Math.max(0, settings.maxReviewsPerDay - stats.reviewCount);
+
+  const [learning, reviews, failsPerSet, failLimits] = await Promise.all([
+    db.query.cards.findMany({
+      with: { set: true },
+      where: and(
+        inArray(cards.setId, setIds),
+        sql`${cards.state} in ('learning', 'relearning')`,
+        lte(cards.due, now),
+      ),
+      orderBy: [asc(cards.due)],
+    }),
+    db.query.cards.findMany({
+      with: { set: true },
+      where: and(inArray(cards.setId, setIds), eq(cards.state, 'review'), lte(cards.due, now)),
+      orderBy: [asc(cards.due)],
+    }),
+    getNewCardFailsPerSet(setIds, studyDay.start, studyDay.end),
+    getNewCardFailLimits(setIds, settings.maxNewCardFailsPerDay),
+  ]);
+
+  const setsAtFailLimit = new Set(
+    setIds.filter((id) => {
+      const limit = failLimits.get(id) ?? settings.maxNewCardFailsPerDay;
+      const fails = failsPerSet.get(id) ?? 0;
+      return fails >= limit;
+    }),
+  );
+
+  const allNewCards = remainingNewBudget
+    ? await db.query.cards.findMany({
+        with: { set: true },
+        where: and(inArray(cards.setId, setIds), eq(cards.state, 'new')),
+        orderBy: [asc(cards.createdAt)],
+        limit: remainingNewBudget,
+      })
+    : [];
+
+  const newCards = allNewCards.filter((card) => !setsAtFailLimit.has(card.setId));
+  const queue = [...learning, ...reviews, ...newCards].slice(0, remainingReviewBudget);
+
+  return {
+    cards: queue.map((card) => toStudyQueueItem(card, now, settings.fsrsWeights, card.set.title)),
+    counts: {
+      learning: learning.length,
+      review: reviews.length,
+      new: newCards.length,
+      remainingReviewBudget,
+      remainingNewBudget,
+    },
+    studyDate: studyDay.key,
   };
 }
 

@@ -3,10 +3,16 @@
 import { and, eq, gte, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
-import { cards, reviewLogs, sets } from '@/db/schema';
+import { cards, reviewLogs, setSettings, sets } from '@/db/schema';
 import { requireUserId } from '@/lib/auth-session';
-import { getMasteryTier, getRetrievability } from '@/lib/fsrs';
-import { computeSetStudyStats, ensureUserSettings } from '@/lib/study-store';
+import { getMasteryTier, getRetrievability, getStudyDayWindow } from '@/lib/fsrs';
+import {
+  applyFailLimitToDueCount,
+  computeSetStudyStats,
+  ensureUserSettings,
+  getNewCardFailLimits,
+  getNewCardFailsPerSet,
+} from '@/lib/study-store';
 
 /** Fetch daily review counts for a set over the last N days. */
 export interface DayActivity {
@@ -61,20 +67,32 @@ async function getSetActivity(setId: string, days: number = 28) {
 /** List all sets for the default user with scheduler-native stats */
 export async function getSets() {
   const userId = await requireUserId();
-  const result = await db.query.sets.findMany({
-    where: eq(sets.userId, userId),
-    with: {
-      cards: true,
-    },
-    orderBy: (sets, { asc }) => [asc(sets.updatedAt)],
-  });
+  const [result, settings] = await Promise.all([
+    db.query.sets.findMany({
+      where: eq(sets.userId, userId),
+      with: { cards: true },
+      orderBy: (sets, { asc }) => [asc(sets.updatedAt)],
+    }),
+    ensureUserSettings(userId),
+  ]);
+
+  const allSetIds = result.map((s) => s.id);
+  const now = new Date();
+  const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
+  const [failsPerSet, failLimits] = await Promise.all([
+    getNewCardFailsPerSet(allSetIds, studyDay.start, studyDay.end),
+    getNewCardFailLimits(allSetIds, settings.maxNewCardFailsPerDay),
+  ]);
 
   return Promise.all(
     result.map(async (set) => {
-      const [stats, activity] = await Promise.all([
+      const [rawStats, activity] = await Promise.all([
         computeSetStudyStats(set.id),
         getSetActivity(set.id),
       ]);
+      const fails = failsPerSet.get(set.id) ?? 0;
+      const limit = failLimits.get(set.id) ?? settings.maxNewCardFailsPerDay;
+      const stats = applyFailLimitToDueCount(rawStats, fails, limit);
       return {
         id: set.id,
         title: set.title,
@@ -105,11 +123,25 @@ export async function getSet(id: string) {
   if (!set) return null;
 
   const now = new Date();
-  const stats = await computeSetStudyStats(id);
+  const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
+  const [rawStats, deckSettings, failsPerSet, failLimits] = await Promise.all([
+    computeSetStudyStats(id),
+    db.query.setSettings.findFirst({
+      where: eq(setSettings.setId, id),
+      columns: { maxNewCardFailsPerDay: true },
+    }),
+    getNewCardFailsPerSet([id], studyDay.start, studyDay.end),
+    getNewCardFailLimits([id], settings.maxNewCardFailsPerDay),
+  ]);
+  const fails = failsPerSet.get(id) ?? 0;
+  const limit = failLimits.get(id) ?? settings.maxNewCardFailsPerDay;
+  const stats = applyFailLimitToDueCount(rawStats, fails, limit);
 
   return {
     ...set,
     stats,
+    maxNewCardFailsPerDay: deckSettings?.maxNewCardFailsPerDay ?? null,
+    userMaxNewCardFailsPerDay: settings.maxNewCardFailsPerDay,
     cards: set.cards.map((card) => ({
       ...card,
       mastery: getMasteryTier(card),

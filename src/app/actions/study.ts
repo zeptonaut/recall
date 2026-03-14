@@ -17,11 +17,16 @@ import {
   toStudyQueueItem,
   type DrillMode,
   type ReviewType,
+  type StudyQueueResult,
 } from '@/lib/fsrs';
 import {
+  applyFailLimitToDueCount,
+  buildDueStudyQueue,
   computeSetStudyStats,
   ensureUserSettings,
   getCardsForRecentLapses,
+  getNewCardFailLimits,
+  getNewCardFailsPerSet,
   getOrCreateDailyStats,
   incrementDailyStats,
 } from '@/lib/study-store';
@@ -43,84 +48,22 @@ async function getOwnedSetIds(setIds: string[], userId: string) {
   return ownedSets.map((set) => set.id);
 }
 
+const EMPTY_QUEUE: StudyQueueResult = {
+  cards: [],
+  counts: { learning: 0, review: 0, new: 0, remainingReviewBudget: 0, remainingNewBudget: 0 },
+  studyDate: '',
+};
+
 export async function getDueStudyQueue(setIds: string[]) {
   const normalizedSetIds = normalizeSetIds(setIds);
-  if (normalizedSetIds.length === 0) {
-    return {
-      cards: [],
-      counts: {
-        learning: 0,
-        review: 0,
-        new: 0,
-        remainingReviewBudget: 0,
-        remainingNewBudget: 0,
-      },
-      studyDate: '',
-    };
-  }
+  if (normalizedSetIds.length === 0) return EMPTY_QUEUE;
 
   const userId = await requireUserId();
   const ownedSetIds = await getOwnedSetIds(normalizedSetIds, userId);
-  if (ownedSetIds.length === 0) {
-    return {
-      cards: [],
-      counts: {
-        learning: 0,
-        review: 0,
-        new: 0,
-        remainingReviewBudget: 0,
-        remainingNewBudget: 0,
-      },
-      studyDate: '',
-    };
-  }
+  if (ownedSetIds.length === 0) return EMPTY_QUEUE;
 
   const settings = await ensureUserSettings(userId);
-  const now = new Date();
-  const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
-  const stats = await getOrCreateDailyStats(userId, studyDay.key);
-
-  const remainingNewBudget = Math.max(0, settings.maxNewCardsPerDay - stats.newCardsCount);
-  const remainingReviewBudget = Math.max(0, settings.maxReviewsPerDay - stats.reviewCount);
-
-  const learning = await db.query.cards.findMany({
-    with: { set: true },
-    where: and(
-      inArray(cards.setId, ownedSetIds),
-      sql`${cards.state} in ('learning', 'relearning')`,
-      lte(cards.due, now)
-    ),
-    orderBy: [asc(cards.due)],
-  });
-
-  const reviews = await db.query.cards.findMany({
-    with: { set: true },
-    where: and(inArray(cards.setId, ownedSetIds), eq(cards.state, 'review'), lte(cards.due, now)),
-    orderBy: [asc(cards.due)],
-  });
-
-  const newCards = remainingNewBudget
-    ? await db.query.cards.findMany({
-        with: { set: true },
-        where: and(inArray(cards.setId, ownedSetIds), eq(cards.state, 'new')),
-        orderBy: [asc(cards.createdAt)],
-        limit: remainingNewBudget,
-      })
-    : [];
-
-  const queue = [...learning, ...reviews, ...newCards].slice(0, remainingReviewBudget);
-
-  return {
-    cards: queue.map((card) => toStudyQueueItem(card, now, settings.fsrsWeights, card.set.title)),
-    counts: {
-      learning: learning.length,
-      review: reviews.length,
-      new: newCards.length,
-      remainingReviewBudget,
-      remainingNewBudget,
-    },
-    studyDate: studyDay.key,
-  };
+  return buildDueStudyQueue(userId, ownedSetIds, settings);
 }
 
 export async function getReviewPreview(cardId: string, reviewType: ReviewType) {
@@ -196,8 +139,22 @@ export async function submitReview(input: {
     revalidatePath(`/sets/${card.setId}/study`);
   }
 
+  // Check if this new-card fail just hit the limit for this set
+  let newCardsExhausted = false;
+  if (input.reviewType === 'scheduled' && card.state === 'new' && input.rating === 1) {
+    const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
+    const [failsPerSet, failLimits] = await Promise.all([
+      getNewCardFailsPerSet([card.setId], studyDay.start, studyDay.end),
+      getNewCardFailLimits([card.setId], settings.maxNewCardFailsPerDay),
+    ]);
+    const fails = failsPerSet.get(card.setId) ?? 0;
+    const limit = failLimits.get(card.setId) ?? settings.maxNewCardFailsPerDay;
+    newCardsExhausted = fails >= limit;
+  }
+
   return {
     reviewType: input.reviewType,
+    newCardsExhausted,
     card:
       input.reviewType === 'scheduled'
         ? toStudyQueueItem({ ...card, ...nextCardState }, now, settings.fsrsWeights, card.set.title)
@@ -278,16 +235,28 @@ export async function getDrillQueue(setIds: string[], count = 10, mode: DrillMod
 
 export async function getSetStudyStats(setId: string) {
   const userId = await requireUserId();
-  const ownedSet = await db.query.sets.findFirst({
-    where: and(eq(sets.id, setId), eq(sets.userId, userId)),
-    columns: { id: true },
-  });
+  const [ownedSet, settings] = await Promise.all([
+    db.query.sets.findFirst({
+      where: and(eq(sets.id, setId), eq(sets.userId, userId)),
+      columns: { id: true },
+    }),
+    ensureUserSettings(userId),
+  ]);
 
   if (!ownedSet) {
     throw new Error('Set not found');
   }
 
-  return computeSetStudyStats(setId);
+  const now = new Date();
+  const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
+  const [rawStats, failsPerSet, failLimits] = await Promise.all([
+    computeSetStudyStats(setId),
+    getNewCardFailsPerSet([setId], studyDay.start, studyDay.end),
+    getNewCardFailLimits([setId], settings.maxNewCardFailsPerDay),
+  ]);
+  const fails = failsPerSet.get(setId) ?? 0;
+  const limit = failLimits.get(setId) ?? settings.maxNewCardFailsPerDay;
+  return applyFailLimitToDueCount(rawStats, fails, limit);
 }
 
 export async function getDrillModes() {
