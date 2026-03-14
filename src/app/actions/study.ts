@@ -3,7 +3,8 @@
 import { and, asc, desc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
-import { cards, reviewLogs } from '@/db/schema';
+import { cards, reviewLogs, sets } from '@/db/schema';
+import { requireUserId } from '@/lib/auth-session';
 import {
   buildReviewPreview,
   createFsrsScheduler,
@@ -29,6 +30,19 @@ function normalizeSetIds(setIds: string[]) {
   return [...new Set(setIds.filter(Boolean))];
 }
 
+async function getOwnedSetIds(setIds: string[], userId: string) {
+  if (setIds.length === 0) {
+    return [];
+  }
+
+  const ownedSets = await db
+    .select({ id: sets.id })
+    .from(sets)
+    .where(and(eq(sets.userId, userId), inArray(sets.id, setIds)));
+
+  return ownedSets.map((set) => set.id);
+}
+
 export async function getDueStudyQueue(setIds: string[]) {
   const normalizedSetIds = normalizeSetIds(setIds);
   if (normalizedSetIds.length === 0) {
@@ -45,10 +59,26 @@ export async function getDueStudyQueue(setIds: string[]) {
     };
   }
 
-  const settings = await ensureUserSettings();
+  const userId = await requireUserId();
+  const ownedSetIds = await getOwnedSetIds(normalizedSetIds, userId);
+  if (ownedSetIds.length === 0) {
+    return {
+      cards: [],
+      counts: {
+        learning: 0,
+        review: 0,
+        new: 0,
+        remainingReviewBudget: 0,
+        remainingNewBudget: 0,
+      },
+      studyDate: '',
+    };
+  }
+
+  const settings = await ensureUserSettings(userId);
   const now = new Date();
   const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
-  const stats = await getOrCreateDailyStats(studyDay.key);
+  const stats = await getOrCreateDailyStats(userId, studyDay.key);
 
   const remainingNewBudget = Math.max(0, settings.maxNewCardsPerDay - stats.newCardsCount);
   const remainingReviewBudget = Math.max(0, settings.maxReviewsPerDay - stats.reviewCount);
@@ -56,7 +86,7 @@ export async function getDueStudyQueue(setIds: string[]) {
   const learning = await db.query.cards.findMany({
     with: { set: true },
     where: and(
-      inArray(cards.setId, normalizedSetIds),
+      inArray(cards.setId, ownedSetIds),
       sql`${cards.state} in ('learning', 'relearning')`,
       lte(cards.due, now)
     ),
@@ -65,14 +95,14 @@ export async function getDueStudyQueue(setIds: string[]) {
 
   const reviews = await db.query.cards.findMany({
     with: { set: true },
-    where: and(inArray(cards.setId, normalizedSetIds), eq(cards.state, 'review'), lte(cards.due, now)),
+    where: and(inArray(cards.setId, ownedSetIds), eq(cards.state, 'review'), lte(cards.due, now)),
     orderBy: [asc(cards.due)],
   });
 
   const newCards = remainingNewBudget
     ? await db.query.cards.findMany({
         with: { set: true },
-        where: and(inArray(cards.setId, normalizedSetIds), eq(cards.state, 'new')),
+        where: and(inArray(cards.setId, ownedSetIds), eq(cards.state, 'new')),
         orderBy: [asc(cards.createdAt)],
         limit: remainingNewBudget,
       })
@@ -95,12 +125,13 @@ export async function getDueStudyQueue(setIds: string[]) {
 
 export async function getReviewPreview(cardId: string, reviewType: ReviewType) {
   void reviewType;
+  const userId = await requireUserId();
   const [card, settings] = await Promise.all([
-    db.query.cards.findFirst({ where: eq(cards.id, cardId) }),
-    ensureUserSettings(),
+    db.query.cards.findFirst({ where: eq(cards.id, cardId), with: { set: true } }),
+    ensureUserSettings(userId),
   ]);
 
-  if (!card) {
+  if (!card || card.set.userId !== userId) {
     throw new Error('Card not found');
   }
 
@@ -113,12 +144,13 @@ export async function submitReview(input: {
   reviewType: ReviewType;
   elapsedMs: number;
 }) {
+  const userId = await requireUserId();
   const [card, settings] = await Promise.all([
     db.query.cards.findFirst({ where: eq(cards.id, input.cardId), with: { set: true } }),
-    ensureUserSettings(),
+    ensureUserSettings(userId),
   ]);
 
-  if (!card) {
+  if (!card || card.set.userId !== userId) {
     throw new Error('Card not found');
   }
 
@@ -153,7 +185,7 @@ export async function submitReview(input: {
       .where(eq(cards.id, card.id));
 
     const studyDay = getStudyDayWindow(now, settings.timezone, settings.newDayStartHour);
-    await incrementDailyStats(studyDay.key, {
+    await incrementDailyStats(userId, studyDay.key, {
       reviewCount: 1,
       newCardsCount: card.state === 'new' ? 1 : 0,
     });
@@ -179,15 +211,21 @@ export async function getDrillQueue(setIds: string[], count = 10, mode: DrillMod
     return [];
   }
 
-  const dueQueue = await getDueStudyQueue(normalizedSetIds);
+  const userId = await requireUserId();
+  const ownedSetIds = await getOwnedSetIds(normalizedSetIds, userId);
+  if (ownedSetIds.length === 0) {
+    return [];
+  }
+
+  const dueQueue = await getDueStudyQueue(ownedSetIds);
   if (dueQueue.cards.length > 0) {
     return [];
   }
 
-  const settings = await ensureUserSettings();
+  const settings = await ensureUserSettings(userId);
   const now = new Date();
 
-  const baseWhere = and(inArray(cards.setId, normalizedSetIds), ne(cards.state, 'new'));
+  const baseWhere = and(inArray(cards.setId, ownedSetIds), ne(cards.state, 'new'));
   let drillCards =
     mode === 'weakest'
       ? await db.query.cards.findMany({
@@ -224,7 +262,7 @@ export async function getDrillQueue(setIds: string[], count = 10, mode: DrillMod
                   orderBy: sql`RANDOM()`,
                   limit: count,
                 })
-              : await getCardsForRecentLapses(normalizedSetIds, now, count);
+              : await getCardsForRecentLapses(ownedSetIds, now, count);
 
   if (mode === 'recent_lapses' && drillCards.length === 0) {
     drillCards = await db.query.cards.findMany({
@@ -239,6 +277,16 @@ export async function getDrillQueue(setIds: string[], count = 10, mode: DrillMod
 }
 
 export async function getSetStudyStats(setId: string) {
+  const userId = await requireUserId();
+  const ownedSet = await db.query.sets.findFirst({
+    where: and(eq(sets.id, setId), eq(sets.userId, userId)),
+    columns: { id: true },
+  });
+
+  if (!ownedSet) {
+    throw new Error('Set not found');
+  }
+
   return computeSetStudyStats(setId);
 }
 

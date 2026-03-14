@@ -3,12 +3,15 @@ import {
   boolean,
   date,
   doublePrecision,
+  index,
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -19,10 +22,15 @@ export const reviewTypeEnum = pgEnum('review_type', ['scheduled', 'drill']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name'),
-  email: text('email'),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  emailVerified: boolean('email_verified').default(false).notNull(),
+  image: text('image'),
   createdAt: timestamptz('created_at').defaultNow().notNull(),
-});
+  updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('users_email_idx').on(table.email),
+]);
 
 export const sets = pgTable('sets', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -81,6 +89,7 @@ export const reviewLogs = pgTable('review_logs', {
 
 export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   desiredRetention: doublePrecision('desired_retention').default(0.9).notNull(),
   maximumInterval: integer('maximum_interval').default(36500).notNull(),
   enableFuzz: boolean('enable_fuzz').default(true).notNull(),
@@ -100,18 +109,104 @@ export const userSettings = pgTable('user_settings', {
   newDayStartHour: integer('new_day_start_hour').default(4).notNull(),
   createdAt: timestamptz('created_at').defaultNow().notNull(),
   updatedAt: timestamptz('updated_at').defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex('user_settings_user_id_idx').on(table.userId),
+]);
 
 export const dailyStats = pgTable('daily_stats', {
-  studyDate: date('study_date', { mode: 'string' }).primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  studyDate: date('study_date', { mode: 'string' }).notNull(),
   newCardsCount: integer('new_cards_count').default(0).notNull(),
   reviewCount: integer('review_count').default(0).notNull(),
   createdAt: timestamptz('created_at').defaultNow().notNull(),
-});
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.studyDate] }),
+]);
+
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  expiresAt: timestamptz('expires_at').notNull(),
+  token: text('token').notNull(),
+  createdAt: timestamptz('created_at').defaultNow().notNull(),
+  updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+}, (table) => [
+  uniqueIndex('sessions_token_idx').on(table.token),
+  index('sessions_user_id_idx').on(table.userId),
+]);
+
+export const accounts = pgTable('accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamptz('access_token_expires_at'),
+  refreshTokenExpiresAt: timestamptz('refresh_token_expires_at'),
+  scope: text('scope'),
+  password: text('password'),
+  createdAt: timestamptz('created_at').defaultNow().notNull(),
+  updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('accounts_user_id_idx').on(table.userId),
+]);
+
+export const verifications = pgTable('verifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamptz('expires_at').notNull(),
+  createdAt: timestamptz('created_at').defaultNow().notNull(),
+  updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('verifications_identifier_idx').on(table.identifier),
+]);
+
+export const apikey = pgTable('apikey', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  configId: text('config_id').default('default').notNull(),
+  name: text('name'),
+  start: text('start'),
+  referenceId: uuid('reference_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  prefix: text('prefix'),
+  key: text('key').notNull(),
+  refillInterval: integer('refill_interval'),
+  refillAmount: integer('refill_amount'),
+  lastRefillAt: timestamptz('last_refill_at'),
+  enabled: boolean('enabled').default(true).notNull(),
+  rateLimitEnabled: boolean('rate_limit_enabled').default(true).notNull(),
+  rateLimitTimeWindow: integer('rate_limit_time_window'),
+  rateLimitMax: integer('rate_limit_max'),
+  requestCount: integer('request_count').default(0).notNull(),
+  remaining: integer('remaining'),
+  lastRequest: timestamptz('last_request'),
+  expiresAt: timestamptz('expires_at'),
+  createdAt: timestamptz('created_at').defaultNow().notNull(),
+  updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+  permissions: text('permissions'),
+  metadata: text('metadata'),
+}, (table) => [
+  index('apikey_config_id_idx').on(table.configId),
+  index('apikey_reference_id_idx').on(table.referenceId),
+  uniqueIndex('apikey_key_idx').on(table.key),
+]);
+
+export const user = users;
+export const session = sessions;
+export const account = accounts;
+export const verification = verifications;
 
 export const usersRelations = relations(users, ({ many }) => ({
   sets: many(sets),
   cardAttempts: many(cardAttempts),
+  sessions: many(sessions),
+  accounts: many(accounts),
+  settings: many(userSettings),
+  dailyStats: many(dailyStats),
 }));
 
 export const setsRelations = relations(sets, ({ one, many }) => ({
@@ -132,4 +227,20 @@ export const cardAttemptsRelations = relations(cardAttempts, ({ one }) => ({
 
 export const reviewLogsRelations = relations(reviewLogs, ({ one }) => ({
   card: one(cards, { fields: [reviewLogs.cardId], references: [cards.id] }),
+}));
+
+export const userSettingsRelations = relations(userSettings, ({ one }) => ({
+  user: one(users, { fields: [userSettings.userId], references: [users.id] }),
+}));
+
+export const dailyStatsRelations = relations(dailyStats, ({ one }) => ({
+  user: one(users, { fields: [dailyStats.userId], references: [users.id] }),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, { fields: [sessions.userId], references: [users.id] }),
+}));
+
+export const accountsRelations = relations(accounts, ({ one }) => ({
+  user: one(users, { fields: [accounts.userId], references: [users.id] }),
 }));

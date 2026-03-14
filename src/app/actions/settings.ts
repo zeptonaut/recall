@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import { userSettings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { requireUserId } from '@/lib/auth-session';
 import { ensureUserSettings } from '@/lib/study-store';
 
 function clamp(value: number, min: number, max: number) {
@@ -11,7 +12,8 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export async function getUserSettings() {
-  return ensureUserSettings();
+  const userId = await requireUserId();
+  return ensureUserSettings(userId);
 }
 
 export async function updateUserSettings(input: {
@@ -21,7 +23,8 @@ export async function updateUserSettings(input: {
   timezone: string;
   newDayStartHour: number;
 }) {
-  const settings = await ensureUserSettings();
+  const userId = await requireUserId();
+  const settings = await ensureUserSettings(userId);
   const [updated] = await db
     .update(userSettings)
     .set({
@@ -32,7 +35,7 @@ export async function updateUserSettings(input: {
       newDayStartHour: clamp(Math.round(input.newDayStartHour), 0, 23),
       updatedAt: new Date(),
     })
-    .where(eq(userSettings.id, settings.id))
+    .where(and(eq(userSettings.id, settings.id), eq(userSettings.userId, userId)))
     .returning();
 
   revalidatePath('/');

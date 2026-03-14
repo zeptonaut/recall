@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import { CardImageUploadError, uploadCardImage } from '@/lib/card-image-storage';
+import { getRequestAuth } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
+    const auth = await getRequestAuth(request);
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const files = formData
       .getAll('files')

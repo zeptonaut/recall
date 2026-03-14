@@ -5,11 +5,13 @@ import { SetCard } from '@/components/set-card';
 import { StudyButton } from '@/components/study-button';
 import { Button } from '@/components/ui/button';
 import { getSets } from '@/app/actions/sets';
+import { requirePageSession } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
 
 /** Dashboard page showing all flashcard sets with scheduler-native study stats. */
 export default async function DashboardPage() {
+  await requirePageSession();
   const sets = await getSets();
 
   return (

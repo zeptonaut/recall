@@ -33,10 +33,14 @@ Development uses `.env.local`. Test uses `.env.test.local`.
 ```bash
 cat <<'EOF' > .env.local
 DATABASE_URL=postgres://localhost:5432/recall_development
+BETTER_AUTH_SECRET=replace-with-a-random-secret
+BETTER_AUTH_URL=http://localhost:4321
 EOF
 
 cat <<'EOF' > .env.test.local
 DATABASE_URL=postgres://localhost:5432/recall_test
+BETTER_AUTH_SECRET=test-better-auth-secret-change-me
+BETTER_AUTH_URL=http://localhost:4321
 EOF
 ```
 

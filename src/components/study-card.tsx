@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, useTransition } from 'react';
 
 import { CardContentDisplay } from '@/components/card-content-display';
-
 import { DifficultyButtons } from '@/components/difficulty-buttons';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,6 +24,14 @@ interface StudyCardProps {
 
 type CardPhase = 'prompt' | 'answer';
 
+const ANSWER_TEXT_SIZE_CLASSES = [
+  'text-3xl font-bold leading-[1.02] -tracking-[0.02em] sm:text-5xl',
+  'text-2xl font-bold leading-[1.04] -tracking-[0.02em] sm:text-4xl',
+  'text-xl font-bold leading-[1.06] -tracking-[0.02em] sm:text-3xl',
+  'text-lg font-bold leading-[1.08] -tracking-[0.015em] sm:text-2xl',
+  'text-base font-semibold leading-[1.12] -tracking-[0.01em] sm:text-xl',
+] as const;
+
 /** Flip-style flashcard: reveal the answer, then rate recall with FSRS. */
 export function StudyCard({ card, reviewType, onRate, onPhaseChange, ref }: StudyCardProps) {
   const [phase, setPhase] = useState<CardPhase>('prompt');
@@ -38,6 +45,14 @@ export function StudyCard({ card, reviewType, onRate, onPhaseChange, ref }: Stud
   const [saving, startSaving] = useTransition();
   const [displayPrompt, setDisplayPrompt] = useState(card.prompt);
   const [displayResponse, setDisplayResponse] = useState(card.response);
+  const [answerTextSizeIndex, setAnswerTextSizeIndex] = useState(0);
+  const answerSectionRef = useRef<HTMLDivElement | null>(null);
+  const answerTextClassName = ANSWER_TEXT_SIZE_CLASSES[answerTextSizeIndex];
+  const startEditing = useCallback(() => {
+    setEditPrompt(displayPrompt);
+    setEditResponse(displayResponse);
+    setEditing(true);
+  }, [displayPrompt, displayResponse]);
 
   const loadPreview = useCallback(async () => {
     const nextPreview = await getReviewPreview(card.id, reviewType);
@@ -78,11 +93,44 @@ export function StudyCard({ card, reviewType, onRate, onPhaseChange, ref }: Stud
     });
   }, [loadPreview, phase]);
 
-  function startEditing() {
-    setEditPrompt(displayPrompt);
-    setEditResponse(displayResponse);
-    setEditing(true);
-  }
+  useEffect(() => {
+    if (phase !== 'answer') return;
+
+    const frame = window.requestAnimationFrame(() => {
+      setAnswerTextSizeIndex(0);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [displayResponse, phase]);
+
+  useEffect(() => {
+    if (phase !== 'answer') return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const answerSection = answerSectionRef.current;
+      if (!answerSection) return;
+
+      const bottomLimit = window.innerHeight - 32;
+      const sectionBottom = answerSection.getBoundingClientRect().bottom;
+
+      if (sectionBottom > bottomLimit && answerTextSizeIndex < ANSWER_TEXT_SIZE_CLASSES.length - 1) {
+        setAnswerTextSizeIndex((current) => Math.min(current + 1, ANSWER_TEXT_SIZE_CLASSES.length - 1));
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [answerTextSizeIndex, displayResponse, phase]);
+
+  useEffect(() => {
+    if (phase !== 'answer') return;
+
+    function handleResize() {
+      setAnswerTextSizeIndex(0);
+    }
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [phase]);
 
   function cancelEditing() {
     setEditing(false);
@@ -169,13 +217,13 @@ export function StudyCard({ card, reviewType, onRate, onPhaseChange, ref }: Stud
                 </div>
 
                 {phase === 'answer' ? (
-                  <div className="mt-8 space-y-8">
+                  <div ref={answerSectionRef} className="mt-8 space-y-8">
                     <div>
                       <CardContentDisplay
                         content={displayResponse}
                         className="space-y-4"
                         imageClassName="mx-auto max-h-80"
-                        textClassName="text-3xl font-bold -tracking-[0.02em] sm:text-5xl"
+                        textClassName={answerTextClassName}
                       />
                     </div>
 

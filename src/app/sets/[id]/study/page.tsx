@@ -1,6 +1,7 @@
 import { getSet } from '@/app/actions/sets';
 import { getDrillModes, getDueStudyQueue } from '@/app/actions/study';
 import { StudySession } from '@/components/study-session';
+import { requirePageSession } from '@/lib/auth-session';
 import { notFound } from 'next/navigation';
 
 interface StudyPageProps {
@@ -9,6 +10,7 @@ interface StudyPageProps {
 
 /** Study page loads the current due queue and drill mode choices for a set. */
 export default async function StudyPage({ params }: StudyPageProps) {
+  await requirePageSession();
   const { id } = await params;
   const set = await getSet(id);
   if (!set) notFound();
@@ -22,7 +24,6 @@ export default async function StudyPage({ params }: StudyPageProps) {
     <main className="mx-auto max-w-3xl p-6">
       <StudySession
         setIds={[id]}
-        studyLabel={set.title}
         initialCards={dueQueue.cards}
         drillModes={drillModes}
         backHref={`/sets/${id}`}

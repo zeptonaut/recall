@@ -19,7 +19,6 @@ interface DrillModeOption {
 
 interface StudySessionProps {
   setIds: string[];
-  studyLabel: string;
   initialCards: StudyQueueItem[];
   drillModes: DrillModeOption[];
   backLabel: string;
@@ -35,7 +34,6 @@ interface StudyResult {
 /** Queue-driven study session for scheduled reviews and non-rescheduling drills. */
 export function StudySession({
   setIds,
-  studyLabel,
   initialCards,
   drillModes,
   backLabel,

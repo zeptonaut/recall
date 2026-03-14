@@ -1,4 +1,5 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
+import { hashPassword } from 'better-auth/crypto';
 import * as schema from './schema';
 import { createSqlClient } from './client';
 import { loadEnvironment } from './env';
@@ -112,17 +113,28 @@ async function seed() {
 
   try {
     console.log('Seeding database...');
+    const demoPassword = 'password1234';
+    const passwordHash = await hashPassword(demoPassword);
 
     const [user] = await db
       .insert(schema.users)
       .values({
         name: 'Charlie',
         email: 'charlie@example.com',
+        emailVerified: true,
       })
       .returning();
     console.log('Created user:', user.name);
 
-    await db.insert(schema.userSettings).values({});
+    await db.insert(schema.accounts).values({
+      userId: user.id,
+      providerId: 'credential',
+      accountId: user.id,
+      password: passwordHash,
+    });
+    console.log('Created demo credentials for charlie@example.com');
+
+    await db.insert(schema.userSettings).values({ userId: user.id });
     console.log('Created default study settings');
 
     const now = new Date();
@@ -376,6 +388,7 @@ async function seed() {
     });
 
     console.log('Seeding complete!');
+    console.log(`Demo login: charlie@example.com / ${demoPassword}`);
   } finally {
     await client.end();
   }

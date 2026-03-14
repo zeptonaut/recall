@@ -81,11 +81,6 @@ export function StudyPageClient({ sets, drillModes }: StudyPageClientProps) {
     .filter((set) => selectedSetIds.includes(set.id))
     .reduce((sum, set) => sum + set.dueCount, 0);
   const isInSession = sessionCards !== null;
-  const studyLabel =
-    selectedSetCount === 1
-      ? sets.find((set) => set.id === selectedSetIds[0])?.title ?? 'Selected set'
-      : `${selectedSetCount} sets selected`;
-
   if (sets.length === 0) {
     return (
       <main className="mx-auto max-w-5xl space-y-8 p-6">
@@ -158,7 +153,6 @@ export function StudyPageClient({ sets, drillModes }: StudyPageClientProps) {
       ) : (
         <StudySession
           setIds={selectedSetIds}
-          studyLabel={studyLabel}
           initialCards={sessionCards}
           drillModes={drillModes}
           backLabel="Back"

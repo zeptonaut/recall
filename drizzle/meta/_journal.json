@@ -15,6 +15,13 @@
       "when": 1772830581480,
       "tag": "0001_purple_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773288042195,
+      "tag": "0002_wooden_trauma",
+      "breakpoints": true
     }
   ]
 }

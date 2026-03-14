@@ -11,27 +11,33 @@ export interface SetStudyStats {
   mastery: Record<MasteryTier, number>;
 }
 
-export async function ensureUserSettings() {
-  const existing = await db.query.userSettings.findFirst();
+export async function ensureUserSettings(userId: string) {
+  const existing = await db.query.userSettings.findFirst({
+    where: eq(userSettings.userId, userId),
+  });
   if (existing) return existing;
 
-  const [created] = await db.insert(userSettings).values({}).returning();
+  const [created] = await db.insert(userSettings).values({ userId }).returning();
   return created;
 }
 
-export async function getOrCreateDailyStats(studyDate: string) {
+export async function getOrCreateDailyStats(userId: string, studyDate: string) {
   const existing = await db.query.dailyStats.findFirst({
-    where: eq(dailyStats.studyDate, studyDate),
+    where: and(eq(dailyStats.userId, userId), eq(dailyStats.studyDate, studyDate)),
   });
 
   if (existing) return existing;
 
-  const [created] = await db.insert(dailyStats).values({ studyDate }).returning();
+  const [created] = await db.insert(dailyStats).values({ userId, studyDate }).returning();
   return created;
 }
 
-export async function incrementDailyStats(studyDate: string, updates: { reviewCount?: number; newCardsCount?: number }) {
-  const current = await getOrCreateDailyStats(studyDate);
+export async function incrementDailyStats(
+  userId: string,
+  studyDate: string,
+  updates: { reviewCount?: number; newCardsCount?: number },
+) {
+  const current = await getOrCreateDailyStats(userId, studyDate);
 
   const [updated] = await db
     .update(dailyStats)
@@ -39,7 +45,7 @@ export async function incrementDailyStats(studyDate: string, updates: { reviewCo
       reviewCount: current.reviewCount + (updates.reviewCount ?? 0),
       newCardsCount: current.newCardsCount + (updates.newCardsCount ?? 0),
     })
-    .where(eq(dailyStats.studyDate, studyDate))
+    .where(and(eq(dailyStats.userId, userId), eq(dailyStats.studyDate, studyDate)))
     .returning();
 
   return updated;

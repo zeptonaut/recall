@@ -3,7 +3,8 @@
 import { and, eq, gte, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
-import { cards, reviewLogs, sets, users } from '@/db/schema';
+import { cards, reviewLogs, sets } from '@/db/schema';
+import { requireUserId } from '@/lib/auth-session';
 import { getMasteryTier, getRetrievability } from '@/lib/fsrs';
 import { computeSetStudyStats, ensureUserSettings } from '@/lib/study-store';
 
@@ -59,7 +60,9 @@ async function getSetActivity(setId: string, days: number = 28) {
 
 /** List all sets for the default user with scheduler-native stats */
 export async function getSets() {
+  const userId = await requireUserId();
   const result = await db.query.sets.findMany({
+    where: eq(sets.userId, userId),
     with: {
       cards: true,
     },
@@ -90,12 +93,13 @@ export async function getSets() {
 
 /** Get a single set with its cards and derived study metadata */
 export async function getSet(id: string) {
+  const userId = await requireUserId();
   const [set, settings] = await Promise.all([
     db.query.sets.findFirst({
-      where: eq(sets.id, id),
+      where: and(eq(sets.id, id), eq(sets.userId, userId)),
       with: { cards: { orderBy: (cards, { asc }) => [asc(cards.position)] } },
     }),
-    ensureUserSettings(),
+    ensureUserSettings(userId),
   ]);
 
   if (!set) return null;
@@ -116,15 +120,12 @@ export async function getSet(id: string) {
 
 /** Create a new set */
 export async function createSet(title: string, description: string) {
-  const [user] = await db.select({ id: users.id }).from(users).limit(1);
-  if (!user) {
-    throw new Error('No default user found');
-  }
+  const userId = await requireUserId();
 
   const [newSet] = await db
     .insert(sets)
     .values({
-      userId: user.id,
+      userId,
       title,
       description: description || null,
     })
@@ -137,10 +138,11 @@ export async function createSet(title: string, description: string) {
 
 /** Update a set's title and description */
 export async function updateSet(id: string, title: string, description: string) {
+  const userId = await requireUserId();
   const [updated] = await db
     .update(sets)
     .set({ title, description: description || null, updatedAt: new Date() })
-    .where(eq(sets.id, id))
+    .where(and(eq(sets.id, id), eq(sets.userId, userId)))
     .returning();
 
   revalidatePath('/');
@@ -152,14 +154,16 @@ export async function updateSet(id: string, title: string, description: string) 
 
 /** Delete a set and its cards (cascades) */
 export async function deleteSet(id: string) {
-  await db.delete(sets).where(eq(sets.id, id));
+  const userId = await requireUserId();
+  await db.delete(sets).where(and(eq(sets.id, id), eq(sets.userId, userId)));
   revalidatePath('/');
   revalidatePath('/study');
 }
 
 export async function getSetCardCount(id: string) {
+  const userId = await requireUserId();
   const set = await db.query.sets.findFirst({
-    where: eq(sets.id, id),
+    where: and(eq(sets.id, id), eq(sets.userId, userId)),
     with: { cards: true },
   });
 
@@ -167,6 +171,16 @@ export async function getSetCardCount(id: string) {
 }
 
 export async function getSetCards(id: string) {
+  const userId = await requireUserId();
+  const set = await db.query.sets.findFirst({
+    where: and(eq(sets.id, id), eq(sets.userId, userId)),
+    columns: { id: true },
+  });
+
+  if (!set) {
+    return [];
+  }
+
   return db.query.cards.findMany({
     where: eq(cards.setId, id),
     orderBy: [cards.position],
