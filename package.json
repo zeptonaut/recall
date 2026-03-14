@@ -18,7 +18,8 @@
     "db:studio": "drizzle-kit studio",
     "db:studio:test": "node scripts/run-with-node-env.mjs test drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
-    "db:seed:test": "node scripts/run-with-node-env.mjs test tsx src/db/seed.ts"
+    "db:seed:test": "node scripts/run-with-node-env.mjs test tsx src/db/seed.ts",
+    "db:migrate:prod": "node scripts/run-with-node-env.mjs production drizzle-kit migrate"
   },
   "dependencies": {
     "@better-auth/api-key": "^1.5.5",

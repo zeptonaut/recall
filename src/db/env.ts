@@ -16,7 +16,7 @@ export function getEnvFilePaths(nodeEnv = process.env.NODE_ENV, rootDir = proces
   const env = normalizeNodeEnv(nodeEnv);
   const fileNames = ['.env', `.env.${env}`];
 
-  if (env !== 'test') {
+  if (env !== 'test' && env !== 'production') {
     fileNames.push('.env.local');
   }
 
