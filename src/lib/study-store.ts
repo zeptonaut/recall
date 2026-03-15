@@ -11,6 +11,16 @@ import {
   type UserSettingsRecord,
 } from '@/lib/fsrs';
 
+/** Fisher-Yates shuffle, returns a new array. */
+function shuffle<T>(arr: T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 export interface SetStudyStats {
   totalCards: number;
   dueNowCount: number;
@@ -256,7 +266,7 @@ export async function buildDueStudyQueue(
       })
     : [];
 
-  const newCards = allNewCards.filter((card) => !setsAtFailLimit.has(card.setId));
+  const newCards = shuffle(allNewCards.filter((card) => !setsAtFailLimit.has(card.setId)));
   const queue = [...learning, ...reviews, ...newCards].slice(0, remainingReviewBudget);
 
   return {
